@@ -51,16 +51,26 @@ export default function DashboardPage() {
   return (
     <main className="dashboard">
       <header className="dashboard__header">
-        <div>
-          <h1>Operator Dashboard</h1>
-          <p className="muted">Click a message to push it to the OBS overlay stream.</p>
+        <div className="dashboard__title">
+          <h1>🎬 Live Chat Monitor</h1>
+          <p className="muted">Select a message to display on your OBS overlay</p>
         </div>
-        <span className={`status status--${overlayStatus}`}>{statusHint}</span>
+        <div className="dashboard__status">
+          <span className={`status status--${overlayStatus}`}>{statusHint}</span>
+          <span className="message-count">{messages.length} messages</span>
+        </div>
       </header>
 
-      <section className="dashboard__content">
-        <article className="panel">
-          <header className="panel__title">Live Chat</header>
+      <section className="dashboard__main">
+        <div className="chatPanel">
+          <div className="chatPanel__header">
+            <h2>Live Chat Stream</h2>
+            {selection && (
+              <button className="btn-clear" onClick={handleClear}>
+                Clear Selection
+              </button>
+            )}
+          </div>
           <div className="chatList">
             {messages.map((message) => (
               <button
@@ -70,35 +80,76 @@ export default function DashboardPage() {
                 }
                 onClick={() => handleSelect(message)}
               >
-                <span className="chatItem__author">{message.author}</span>
-                <span className="chatItem__text">{message.text}</span>
-                <time>{new Date(message.publishedAt).toLocaleTimeString()}</time>
+                <div className="chatItem__header">
+                  {message.authorPhoto && (
+                    <img src={message.authorPhoto} alt={message.author} className="chatItem__avatar" />
+                  )}
+                  <div className="chatItem__meta">
+                    <div className="chatItem__authorLine">
+                      <span className="chatItem__author">{message.author}</span>
+                      {message.badges && message.badges.map((badge, i) => (
+                        <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
+                          {badge.type === 'moderator' && '🛡️'}
+                          {badge.type === 'member' && '⭐'}
+                          {badge.type === 'verified' && '✓'}
+                        </span>
+                      ))}
+                    </div>
+                    <time className="chatItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
+                  </div>
+                </div>
+                {message.superChat && (
+                  <div className="chatItem__superchat" style={{ backgroundColor: message.superChat.color }}>
+                    💰 Super Chat: {message.superChat.amount}
+                  </div>
+                )}
+                {message.membershipGift && (
+                  <div className="chatItem__membership">
+                    🎁 New Member!
+                  </div>
+                )}
+                <p className="chatItem__text">{message.text}</p>
               </button>
             ))}
-            {messages.length === 0 && <p className="muted">Waiting for chat messages…</p>}
+            {messages.length === 0 && (
+              <div className="chatList__empty">
+                <p>⏳ Waiting for chat messages...</p>
+              </div>
+            )}
           </div>
-        </article>
+        </div>
 
-        <article className="panel overlayPreview">
-          <header className="panel__title">Overlay Preview</header>
-          {selection ? (
-            <div className="overlayPreview__card">
-              <span className="overlayPreview__author">{selection.author}</span>
-              <p>{selection.text}</p>
-              <time>{new Date(selection.publishedAt).toLocaleTimeString()}</time>
-              <button className="secondary" onClick={handleClear}>
-                Clear selection
-              </button>
+        {selection && (
+          <div className="selectedPreview">
+            <h3>🎯 Selected for Overlay</h3>
+            <div className="selectedPreview__card">
+              <div className="selectedPreview__header">
+                {selection.authorPhoto && (
+                  <img src={selection.authorPhoto} alt={selection.author} className="selectedPreview__avatar" />
+                )}
+                <div>
+                  <div className="selectedPreview__authorLine">
+                    <span className="selectedPreview__author">{selection.author}</span>
+                    {selection.badges && selection.badges.map((badge, i) => (
+                      <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
+                        {badge.type === 'moderator' && '🛡️'}
+                        {badge.type === 'member' && '⭐'}
+                        {badge.type === 'verified' && '✓'}
+                      </span>
+                    ))}
+                  </div>
+                  <time>{new Date(selection.publishedAt).toLocaleTimeString()}</time>
+                </div>
+              </div>
+              {selection.superChat && (
+                <div className="selectedPreview__superchat" style={{ backgroundColor: selection.superChat.color }}>
+                  💰 {selection.superChat.amount}
+                </div>
+              )}
+              <p className="selectedPreview__text">{selection.text}</p>
             </div>
-          ) : (
-            <div className="overlayPreview__empty">
-              <p>No message selected yet.</p>
-              <button className="secondary" onClick={handleClear}>
-                Reset
-              </button>
-            </div>
-          )}
-        </article>
+          </div>
+        )}
       </section>
     </main>
   );

@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@shared/chat';
+import type { ChatMessage, Badge, SuperChatInfo } from '@shared/chat';
 import EventEmitter from 'eventemitter3';
 import Innertube, { UniversalCache } from 'youtubei.js';
 
@@ -124,6 +124,40 @@ function resolveTimestamp(timestamp: number | string | undefined): string {
   return new Date().toISOString();
 }
 
+function extractBadges(item: any): Badge[] {
+  const badges: Badge[] = [];
+  
+  if (!item.author?.badges) return badges;
+
+  for (const badge of item.author.badges) {
+    const label = badge.tooltip ?? badge.label ?? '';
+    
+    if (label.toLowerCase().includes('moderator')) {
+      badges.push({ type: 'moderator', label });
+    } else if (label.toLowerCase().includes('member')) {
+      badges.push({ type: 'member', label });
+    } else if (label.toLowerCase().includes('verified')) {
+      badges.push({ type: 'verified', label });
+    } else if (label) {
+      badges.push({ type: 'custom', label });
+    }
+  }
+
+  return badges;
+}
+
+function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
+  if (item.type !== 'LiveChatPaidMessage') return undefined;
+
+  const amount = item.purchase_amount_text?.toString() ?? '';
+  
+  return {
+    amount,
+    currency: item.currency ?? 'USD',
+    color: item.body_background_color?.toString() ?? '#1e3a8a'
+  };
+}
+
 function normalizeAction(action: any): ChatMessage | null {
   if (!action || action.type !== 'AddChatItemAction') {
     return null;
@@ -137,11 +171,23 @@ function normalizeAction(action: any): ChatMessage | null {
     item.type === 'LiveChatPaidMessage' ||
     item.type === 'LiveChatMembershipItem'
   ) {
+    const badges = extractBadges(item);
+    const isModerator = badges.some(b => b.type === 'moderator');
+    const isMember = badges.some(b => b.type === 'member');
+    const isVerified = badges.some(b => b.type === 'verified');
+    
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
       author: String(item.author?.name ?? 'Unknown'),
+      authorPhoto: item.author?.thumbnails?.[0]?.url,
       text: resolveMessageText(item),
-      publishedAt: resolveTimestamp(item.timestamp ?? item.timestamp_usec)
+      publishedAt: resolveTimestamp(item.timestamp ?? item.timestamp_usec),
+      badges: badges.length > 0 ? badges : undefined,
+      isModerator,
+      isMember,
+      isVerified,
+      superChat: extractSuperChatInfo(item),
+      membershipGift: item.type === 'LiveChatMembershipItem'
     };
   }
 

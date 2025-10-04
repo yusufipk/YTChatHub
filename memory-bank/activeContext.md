@@ -1,19 +1,24 @@
 # Active Context
 
 ## Current Focus
-- Simplified project layout: single pnpm package with `client/`, `backend/`, and `shared/` folders; no workspaces.
-- Backend and UI skeletons run via `pnpm dev`, ready for real stream integration and UX polish.
+- **Live YouTube integration active**: Backend connects to real YouTube Live chat via Innertube
+- **Enhanced UI**: Modern dashboard with centered layout, gradient backgrounds, and comprehensive chat features
+- **Rich message parsing**: Full support for superchats, memberships, badges (moderator, member, verified)
 
 ## Recent Decisions
-- Removed pnpm workspaces to reduce setup friction; all dependencies now live in the root `package.json`.
-- Adopted `tsx` for running the backend in dev, so we avoid ESM loader quirks from `ts-node`.
-- Maintained Innertube (`youtubei.js`) ingestion with mock fallback to keep development unblocked without credentials.
+- Fixed CORS issues by setting headers on raw response object after `reply.hijack()` for SSE endpoint
+- Added `.env` loading via `tsx --env-file=.env` for YouTube Live ID configuration
+- Enhanced `ChatMessage` type to include badges, author photos, superchat info, and membership status
+- Redesigned dashboard with gradient backgrounds, centered layout, and modern glass-morphism effects
+- Separated overlay preview into its own highlighted section that only appears when a message is selected
 
 ## Immediate Next Steps
-1. Verify `pnpm install` + `pnpm dev` on a clean machine, ensuring backend and client start smoothly.
-2. Harden backend ingestion (error handling, reconnection/backoff) now that the runtime setup is stable.
-3. Flesh out operator dashboard UX (filters/search, live status indicators) and document configuration in README/onboarding notes.
+1. Test with live YouTube stream to verify badge parsing and superchat detection
+2. Add search/filter functionality for chat messages
+3. Implement error recovery and reconnection logic for stream interruptions
+4. Add keyboard shortcuts for quick message selection
 
 ## Open Questions
-- Whether to persist Innertube visitor data between runs to reduce boot time and API churn.
-- When to introduce optional persistence (SQLite) given `better-sqlite3` is now a direct runtime dependency.
+- Whether to add message search/filtering UI controls
+- How to handle rate limiting and backoff strategies for long streams
+- Whether to persist Innertube visitor data between runs

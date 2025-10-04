@@ -39,7 +39,33 @@ export default function OverlayPage() {
     <main className="overlay">
       {message ? (
         <div className="overlay__card">
-          <span className="overlay__author">{message.author}</span>
+          <div className="overlay__header">
+            {message.authorPhoto && (
+              <img src={message.authorPhoto} alt={message.author} className="overlay__avatar" />
+            )}
+            <div>
+              <div className="overlay__authorLine">
+                <span className="overlay__author">{message.author}</span>
+                {message.badges && message.badges.map((badge, i) => (
+                  <span key={i} className={`overlay__badge overlay__badge--${badge.type}`} title={badge.label}>
+                    {badge.type === 'moderator' && '🛡️'}
+                    {badge.type === 'member' && '⭐'}
+                    {badge.type === 'verified' && '✓'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          {message.superChat && (
+            <div className="overlay__superchat" style={{ backgroundColor: message.superChat.color }}>
+              💰 {message.superChat.amount}
+            </div>
+          )}
+          {message.membershipGift && (
+            <div className="overlay__membership">
+              🎁 New Member!
+            </div>
+          )}
           <p className="overlay__text">{message.text}</p>
         </div>
       ) : (
