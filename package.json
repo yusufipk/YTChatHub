@@ -1,0 +1,14 @@
+{
+  "name": "youtube-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "High-performance YouTube Live chat client for streamers.",
+  "license": "MIT",
+  "packageManager": "pnpm@8.15.4",
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "start": "pnpm -r start"
+  }
+}
