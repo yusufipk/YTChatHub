@@ -85,10 +85,15 @@ export async function fetchChatBatch(
 
   ctx.emitter.off('message', listener);
 
+  const timeoutMs = ctx.liveChat?.continuation?.timeout_ms;
+  const validTimeout = typeof timeoutMs === 'number' && !isNaN(timeoutMs) && timeoutMs > 0
+    ? timeoutMs
+    : defaultTimeout;
+
   return {
     messages: collected,
     nextToken: ctx.liveChat?.continuation?.token ?? null,
-    timeoutMs: ctx.liveChat?.continuation?.timeout_ms ?? defaultTimeout
+    timeoutMs: validTimeout
   };
 }
 

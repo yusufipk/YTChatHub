@@ -8,10 +8,18 @@ const MAX_MESSAGES = 500;
 
 export async function startBackend() {
   const fastify = Fastify({
-    logger: true
+    logger: {
+      level: 'info'
+    }
   });
 
-  await fastify.register(cors, { origin: true });
+  // Register CORS before any routes
+  await fastify.register(cors, {
+    origin: '*',
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false
+  });
 
   const store: ChatMessage[] = [];
   let currentSelection: ChatMessage | null = null;
@@ -22,6 +30,7 @@ export async function startBackend() {
   const shouldMock = !parsedLiveId;
 
   let ingestion: IngestionContext | null = null;
+  let mockInterval: NodeJS.Timeout | null = null;
 
   if (!shouldMock) {
     try {
@@ -46,15 +55,98 @@ export async function startBackend() {
   }
 
   if (!ingestion) {
-    seedMockMessages(store, overlayEmitter);
+    mockInterval = seedMockMessages(store, overlayEmitter);
   }
 
   fastify.get('/health', async () => ({
     status: 'ok',
     messages: store.length,
     selection: currentSelection?.id ?? null,
-    mode: ingestion ? 'live' : 'mock'
+    mode: ingestion ? 'live' : 'mock',
+    connected: !!ingestion,
+    liveId: ingestion?.videoId ?? null
   }));
+
+  fastify.post<{ Body: { liveId: string } }>('/chat/connect', async (request, reply) => {
+    const { liveId } = request.body ?? {};
+    if (!liveId) {
+      reply.status(400);
+      return { error: 'liveId is required' };
+    }
+
+    const parsedLiveId = extractLiveId(liveId);
+    if (!parsedLiveId) {
+      reply.status(400);
+      return { error: 'Invalid YouTube Live ID or URL' };
+    }
+
+    // Stop mock messages if running
+    if (mockInterval) {
+      clearInterval(mockInterval);
+      mockInterval = null;
+      console.log('[Backend] Stopped mock messages');
+    }
+
+    // Stop existing ingestion if any
+    if (ingestion) {
+      try {
+        ingestion.liveChat?.stop?.();
+      } catch (e) {
+        console.error('[Backend] Error stopping previous connection:', e);
+      }
+      ingestion = null;
+    }
+
+    // Clear messages
+    store.length = 0;
+
+    try {
+      console.log(`[Backend] Connecting to YouTube Live ID: ${parsedLiveId}`);
+      ingestion = await bootstrapInnertube(parsedLiveId);
+      console.log(`[Backend] ✓ YouTube chat connected successfully`);
+      
+      ingestion.emitter.on('message', (message) => {
+        console.log(`[Chat] ${message.author}: ${message.text}`);
+        store.push(message);
+        if (store.length > MAX_MESSAGES) {
+          store.splice(0, store.length - MAX_MESSAGES);
+        }
+      });
+      
+      ingestion.emitter.on('error', (error) => {
+        console.error('[Backend] Innertube ingestion error:', error);
+      });
+
+      return { ok: true, liveId: parsedLiveId };
+    } catch (error) {
+      console.error('[Backend] Failed to connect:', error);
+      reply.status(500);
+      return { error: 'Failed to connect to YouTube Live chat' };
+    }
+  });
+
+  fastify.post('/chat/disconnect', async () => {
+    if (ingestion) {
+      try {
+        ingestion.liveChat?.stop?.();
+        console.log('[Backend] Disconnected from YouTube chat');
+      } catch (e) {
+        console.error('[Backend] Error disconnecting:', e);
+      }
+      ingestion = null;
+    }
+    
+    // Start mock messages again
+    if (!mockInterval) {
+      mockInterval = seedMockMessages(store, overlayEmitter);
+      console.log('[Backend] Started mock messages');
+    }
+    
+    store.length = 0;
+    currentSelection = null;
+    overlayEmitter.emit('update', null);
+    return { ok: true };
+  });
 
   fastify.get('/chat/messages', async () => ({
     messages: store
@@ -83,15 +175,6 @@ export async function startBackend() {
     currentSelection = null;
     overlayEmitter.emit('update', null);
     return { ok: true };
-  });
-
-  fastify.options('/overlay/stream', async (request, reply) => {
-    reply.headers({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    });
-    reply.status(204).send();
   });
 
   fastify.get('/overlay/stream', async (request, reply) => {
@@ -158,10 +241,10 @@ function extractLiveId(input: string): string {
 function seedMockMessages(
   store: ChatMessage[],
   overlayEmitter: EventEmitter<{ update: (message: ChatMessage | null) => void }>
-) {
+): NodeJS.Timeout {
   let counter = 0;
   const authors = ['Ada', 'Linus', 'Grace', 'Marge'];
-  setInterval(() => {
+  return setInterval(() => {
     const message: ChatMessage = {
       id: `mock-${Date.now()}`,
       author: authors[counter % authors.length],

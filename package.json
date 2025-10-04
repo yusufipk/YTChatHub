@@ -7,7 +7,7 @@
   "packageManager": "pnpm@8.15.4",
   "scripts": {
     "dev": "concurrently \"pnpm dev:backend\" \"pnpm dev:client\"",
-    "dev:backend": "tsx --env-file=.env backend/src/index.ts",
+    "dev:backend": "tsx backend/src/index.ts",
     "dev:client": "next dev client",
     "build": "pnpm build:backend && pnpm build:client",
     "build:backend": "tsc -p backend/tsconfig.build.json",

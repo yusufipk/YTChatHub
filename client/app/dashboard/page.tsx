@@ -9,6 +9,7 @@ const POLL_INTERVAL = 2500;
 export default function DashboardPage() {
   const { messages, refresh, error: pollError } = useChatMessages();
   const { selection, status: overlayStatus } = useOverlaySelection();
+  const { connected, liveId, connect, disconnect, connecting } = useConnection();
 
   const handleSelect = useCallback(
     async (message: ChatMessage) => {
@@ -60,6 +61,14 @@ export default function DashboardPage() {
           <span className="message-count">{messages.length} messages</span>
         </div>
       </header>
+
+      <ConnectionControl
+        connected={connected}
+        liveId={liveId}
+        connecting={connecting}
+        onConnect={connect}
+        onDisconnect={disconnect}
+      />
 
       <section className="dashboard__main">
         <div className="chatPanel">
@@ -212,4 +221,119 @@ function useOverlaySelection() {
   }, []);
 
   return { selection, status };
+}
+
+function useConnection() {
+  const [connected, setConnected] = useState(false);
+  const [liveId, setLiveId] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+
+  const checkStatus = useCallback(async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/health`);
+      const data = await response.json();
+      setConnected(data.connected);
+      setLiveId(data.liveId);
+    } catch (error) {
+      console.error('Failed to check connection status', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkStatus();
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, [checkStatus]);
+
+  const connect = useCallback(async (liveId: string) => {
+    setConnecting(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/chat/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ liveId })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to connect');
+      }
+      
+      await checkStatus();
+    } catch (error) {
+      console.error('Failed to connect', error);
+      alert('Failed to connect to YouTube Live chat. Please check the Live ID.');
+    } finally {
+      setConnecting(false);
+    }
+  }, [checkStatus]);
+
+  const disconnect = useCallback(async () => {
+    try {
+      await fetch(`${BACKEND_URL}/chat/disconnect`, { method: 'POST' });
+      await checkStatus();
+    } catch (error) {
+      console.error('Failed to disconnect', error);
+    }
+  }, [checkStatus]);
+
+  return { connected, liveId, connect, disconnect, connecting };
+}
+
+type ConnectionControlProps = {
+  connected: boolean;
+  liveId: string | null;
+  connecting: boolean;
+  onConnect: (liveId: string) => void;
+  onDisconnect: () => void;
+};
+
+function ConnectionControl({ connected, liveId, connecting, onConnect, onDisconnect }: ConnectionControlProps) {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputValue.trim()) {
+      onConnect(inputValue.trim());
+    }
+  };
+
+  return (
+    <div className="connectionControl">
+      <div className="connectionControl__content">
+        {connected ? (
+          <div className="connectionControl__connected">
+            <div className="connectionControl__info">
+              <span className="connectionControl__badge">🟢 Connected</span>
+              <span className="connectionControl__liveId">Live ID: {liveId}</span>
+            </div>
+            <button className="btn-disconnect" onClick={onDisconnect}>
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <form className="connectionControl__form" onSubmit={handleSubmit}>
+            <div className="connectionControl__input">
+              <label htmlFor="liveId">YouTube Live Stream ID or URL</label>
+              <input
+                id="liveId"
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="e.g., dQw4w9WgXcQ or https://youtube.com/watch?v=..."
+                disabled={connecting}
+              />
+            </div>
+            <button
+              type="submit"
+              className="btn-connect"
+              disabled={connecting || !inputValue.trim()}
+            >
+              {connecting ? 'Connecting...' : 'Connect to Stream'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
 }

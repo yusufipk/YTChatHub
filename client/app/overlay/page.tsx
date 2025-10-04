@@ -12,13 +12,30 @@ type SelectionPayload = {
 export default function OverlayPage() {
   const [message, setMessage] = useState<ChatMessage | null>(null);
   const [connected, setConnected] = useState(false);
+  const [fadingOut, setFadingOut] = useState(false);
 
   useEffect(() => {
     const source = new EventSource(`${BACKEND_URL}/overlay/stream`);
+    
     const onSelection = (event: MessageEvent) => {
       try {
         const payload: SelectionPayload = JSON.parse(event.data);
-        setMessage(payload.message);
+        
+        setMessage((prevMessage) => {
+          if (payload.message === null && prevMessage !== null) {
+            // Trigger fade out animation before clearing
+            setFadingOut(true);
+            setTimeout(() => {
+              setMessage(null);
+              setFadingOut(false);
+            }, 300);
+            return prevMessage; // Keep current message during fade
+          } else {
+            setFadingOut(false);
+            return payload.message;
+          }
+        });
+        
         setConnected(true);
       } catch (error) {
         console.error('overlay: failed to parse payload', error);
@@ -33,12 +50,12 @@ export default function OverlayPage() {
       source.removeEventListener('selection', onSelection as EventListener);
       source.close();
     };
-  }, []);
+  }, []); // Empty dependency array - only connect once
 
   return (
     <main className="overlay">
       {message ? (
-        <div className="overlay__card">
+        <div className={`overlay__card ${fadingOut ? 'overlay__card--fadeOut' : ''}`}>
           <div className="overlay__header">
             {message.authorPhoto && (
               <img src={message.authorPhoto} alt={message.author} className="overlay__avatar" />

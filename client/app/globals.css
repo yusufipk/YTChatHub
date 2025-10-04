@@ -124,11 +124,145 @@ main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2rem clamp(1rem, 5vw, 3rem);
+  padding: 0 clamp(1rem, 5vw, 3rem) 2rem;
   gap: 2rem;
   max-width: 1400px;
   width: 100%;
   margin: 0 auto;
+}
+
+.connectionControl {
+  width: 100%;
+  padding: 1.5rem clamp(1rem, 5vw, 3rem);
+  background: rgba(30, 41, 59, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.connectionControl__content {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.connectionControl__connected {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.connectionControl__info {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.connectionControl__badge {
+  padding: 0.5rem 1rem;
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.connectionControl__liveId {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.connectionControl__form {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.connectionControl__input {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.connectionControl__input label {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.connectionControl__input input {
+  padding: 0.75rem 1rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  font-family: 'Monaco', 'Courier New', monospace;
+  transition: border-color 150ms ease;
+}
+
+.connectionControl__input input:focus {
+  outline: none;
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+.connectionControl__input input::placeholder {
+  color: #64748b;
+}
+
+.connectionControl__input input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-connect,
+.btn-disconnect {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.btn-connect {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: #fff;
+}
+
+.btn-connect:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+}
+
+.btn-connect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-disconnect {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-disconnect:hover {
+  background: rgba(239, 68, 68, 0.25);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .connectionControl__form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .connectionControl__connected {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .chatPanel {
@@ -392,6 +526,28 @@ main {
   background: rgba(0, 0, 0, 0);
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
 .overlay__card {
   padding: 2rem 2.5rem;
   border-radius: 24px;
@@ -404,6 +560,11 @@ main {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.overlay__card--fadeOut {
+  animation: fadeOut 0.3s ease-in forwards;
 }
 
 .overlay__header {
