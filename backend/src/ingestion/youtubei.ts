@@ -154,12 +154,32 @@ function extractBadges(item: any): Badge[] {
 function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
   if (item.type !== 'LiveChatPaidMessage') return undefined;
 
-  const amount = item.purchase_amount_text?.toString() ?? '';
+  // Try multiple possible field names for the amount
+  let amount = '';
+  if (item.purchase_amount_text) {
+    amount = typeof item.purchase_amount_text === 'string' 
+      ? item.purchase_amount_text 
+      : item.purchase_amount_text.simpleText || item.purchase_amount_text.toString();
+  } else if (item.purchaseAmountText) {
+    amount = typeof item.purchaseAmountText === 'string'
+      ? item.purchaseAmountText
+      : item.purchaseAmountText.simpleText || item.purchaseAmountText.toString();
+  } else if (item.amount) {
+    amount = item.amount.toString();
+  }
+  
+  // Try multiple possible field names for color
+  const color = item.body_background_color?.toString() 
+    || item.bodyBackgroundColor?.toString()
+    || item.headerBackgroundColor?.toString()
+    || '#1e3a8a';
+  
+  console.log('[SuperChat] Extracted:', { amount, color, rawItem: item });
   
   return {
-    amount,
+    amount: amount || 'Super Chat',
     currency: item.currency ?? 'USD',
-    color: item.body_background_color?.toString() ?? '#1e3a8a'
+    color
   };
 }
 
@@ -181,6 +201,14 @@ function normalizeAction(action: any): ChatMessage | null {
     const isMember = badges.some(b => b.type === 'member');
     const isVerified = badges.some(b => b.type === 'verified');
     
+    // Extract membership level for new members
+    let membershipLevel: string | undefined;
+    if (item.type === 'LiveChatMembershipItem') {
+      membershipLevel = item.header_subtext?.toString() || 
+                       item.header_primary_text?.toString() || 
+                       'New member';
+    }
+    
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
       author: String(item.author?.name ?? 'Unknown'),
@@ -192,7 +220,8 @@ function normalizeAction(action: any): ChatMessage | null {
       isMember,
       isVerified,
       superChat: extractSuperChatInfo(item),
-      membershipGift: item.type === 'LiveChatMembershipItem'
+      membershipGift: item.type === 'LiveChatMembershipItem',
+      membershipLevel
     };
   }
 

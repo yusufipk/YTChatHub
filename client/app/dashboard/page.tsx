@@ -1,10 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import type { ChatMessage } from '@shared/chat';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4100';
 const POLL_INTERVAL = 2500;
+
+// Global singleton to prevent multiple SSE connections across all renders/remounts
+let globalSSEConnection: EventSource | null = null;
+let globalConnectionListeners: Set<(payload: any) => void> = new Set();
 
 export default function DashboardPage() {
   const { messages, refresh, error: pollError } = useChatMessages();
@@ -49,6 +53,10 @@ export default function DashboardPage() {
     return 'Live';
   }, [pollError, overlayStatus]);
 
+  const superChats = useMemo(() => messages.filter(m => m.superChat), [messages]);
+  const newMembers = useMemo(() => messages.filter(m => m.membershipGift), [messages]);
+  const regularMessages = useMemo(() => messages.filter(m => !m.superChat && !m.membershipGift), [messages]);
+
   return (
     <main className="dashboard">
       <header className="dashboard__header">
@@ -70,95 +78,84 @@ export default function DashboardPage() {
         onDisconnect={disconnect}
       />
 
-      <section className="dashboard__main">
-        <div className="chatPanel">
-          <div className="chatPanel__header">
-            <h2>Live Chat Stream</h2>
-            {selection && (
-              <button className="btn-clear" onClick={handleClear}>
-                Clear Selection
-              </button>
-            )}
-          </div>
-          <div className="chatList">
-            {messages.map((message) => (
-              <button
-                key={message.id}
-                className={
-                  selection?.id === message.id ? 'chatItem chatItem--active' : 'chatItem'
-                }
-                onClick={() => handleSelect(message)}
-              >
-                <div className="chatItem__header">
-                  {message.authorPhoto && (
-                    <img src={message.authorPhoto} alt={message.author} className="chatItem__avatar" />
-                  )}
-                  <div className="chatItem__meta">
-                    <div className="chatItem__authorLine">
-                      <span className="chatItem__author">{message.author}</span>
-                      {message.badges && message.badges.map((badge, i) => (
-                        <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
-                          {badge.type === 'moderator' && '🛡️'}
-                          {badge.type === 'member' && '⭐'}
-                          {badge.type === 'verified' && '✓'}
-                        </span>
-                      ))}
-                    </div>
-                    <time className="chatItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
-                  </div>
+      <section className="dashboard__grid">
+        {/* Main Chat Column */}
+        <div className="chatColumn">
+          <div className="panel">
+            <div className="panel__header">
+              <h2>💬 Live Chat</h2>
+              {selection && (
+                <button className="btn-clear" onClick={handleClear}>
+                  Clear Selection
+                </button>
+              )}
+            </div>
+            <div className="chatList">
+              {regularMessages.map((message) => (
+                <ChatItem
+                  key={message.id}
+                  message={message}
+                  isSelected={selection?.id === message.id}
+                  onSelect={() => handleSelect(message)}
+                />
+              ))}
+              {regularMessages.length === 0 && (
+                <div className="chatList__empty">
+                  <p>⏳ Waiting for chat messages...</p>
                 </div>
-                {message.superChat && (
-                  <div className="chatItem__superchat" style={{ backgroundColor: message.superChat.color }}>
-                    💰 Super Chat: {message.superChat.amount}
-                  </div>
-                )}
-                {message.membershipGift && (
-                  <div className="chatItem__membership">
-                    🎁 New Member!
-                  </div>
-                )}
-                <p className="chatItem__text">{message.text}</p>
-              </button>
-            ))}
-            {messages.length === 0 && (
-              <div className="chatList__empty">
-                <p>⏳ Waiting for chat messages...</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
-        {selection && (
-          <div className="selectedPreview">
-            <h3>🎯 Selected for Overlay</h3>
-            <div className="selectedPreview__card">
-              <div className="selectedPreview__header">
-                {selection.authorPhoto && (
-                  <img src={selection.authorPhoto} alt={selection.author} className="selectedPreview__avatar" />
-                )}
-                <div>
-                  <div className="selectedPreview__authorLine">
-                    <span className="selectedPreview__author">{selection.author}</span>
-                    {selection.badges && selection.badges.map((badge, i) => (
-                      <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
-                        {badge.type === 'moderator' && '🛡️'}
-                        {badge.type === 'member' && '⭐'}
-                        {badge.type === 'verified' && '✓'}
-                      </span>
-                    ))}
-                  </div>
-                  <time>{new Date(selection.publishedAt).toLocaleTimeString()}</time>
-                </div>
-              </div>
-              {selection.superChat && (
-                <div className="selectedPreview__superchat" style={{ backgroundColor: selection.superChat.color }}>
-                  💰 {selection.superChat.amount}
+        {/* Right Split Column */}
+        <div className="splitColumn">
+          {/* Super Chats - Top Half */}
+          <div className="panel">
+            <div className="panel__header">
+              <h2>💰 Super Chats</h2>
+              <span className="badge badge--count">{superChats.length}</span>
+            </div>
+            <div className="chatList">
+              {superChats.map((message) => (
+                <ChatItem
+                  key={message.id}
+                  message={message}
+                  isSelected={selection?.id === message.id}
+                  onSelect={() => handleSelect(message)}
+                />
+              ))}
+              {superChats.length === 0 && (
+                <div className="chatList__empty">
+                  <p>No super chats yet</p>
                 </div>
               )}
-              <p className="selectedPreview__text">{selection.text}</p>
             </div>
           </div>
-        )}
+
+          {/* New Members - Bottom Half */}
+          <div className="panel">
+            <div className="panel__header">
+              <h2>⭐ New Members</h2>
+              <span className="badge badge--count">{newMembers.length}</span>
+            </div>
+            <div className="chatList">
+              {newMembers.map((message) => (
+                <MemberItem
+                  key={message.id}
+                  message={message}
+                  isSelected={selection?.id === message.id}
+                  onSelect={() => handleSelect(message)}
+                />
+              ))}
+              {newMembers.length === 0 && (
+                <div className="chatList__empty">
+                  <p>No new members yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -196,27 +193,48 @@ type SelectionPayload = {
 function useOverlaySelection() {
   const [selection, setSelection] = useState<ChatMessage | null>(null);
   const [status, setStatus] = useState<OverlayStatus>('connecting');
+  const listenerRef = useRef<((payload: any) => void) | null>(null);
 
   useEffect(() => {
-    const source = new EventSource(`${BACKEND_URL}/overlay/stream`);
+    // Create global connection if it doesn't exist
+    if (!globalSSEConnection) {
+      console.log('[Dashboard] Creating GLOBAL SSE connection');
+      globalSSEConnection = new EventSource(`${BACKEND_URL}/overlay/stream`);
+      
+      globalSSEConnection.addEventListener('selection', ((event: MessageEvent) => {
+        try {
+          const payload: SelectionPayload = JSON.parse(event.data);
+          // Broadcast to all listeners
+          globalConnectionListeners.forEach(listener => listener(payload));
+        } catch (error) {
+          console.error('Failed to parse selection payload', error);
+        }
+      }) as EventListener);
 
-    const onSelection = (event: MessageEvent) => {
-      try {
-        const payload: SelectionPayload = JSON.parse(event.data);
-        setSelection(payload.message);
-        setStatus('live');
-      } catch (error) {
-        console.error('Failed to parse selection payload', error);
-      }
+      globalSSEConnection.addEventListener('heartbeat', () => {
+        // Heartbeat - connection is alive
+      });
+
+      globalSSEConnection.onerror = () => {
+        console.error('[Dashboard] SSE error');
+      };
+    }
+
+    // Register this component's listener
+    const myListener = (payload: SelectionPayload) => {
+      setSelection(payload.message);
+      setStatus('live');
     };
-
-    source.addEventListener('selection', onSelection as EventListener);
-    source.addEventListener('heartbeat', () => setStatus('live'));
-    source.onerror = () => setStatus('error');
+    
+    listenerRef.current = myListener;
+    globalConnectionListeners.add(myListener);
 
     return () => {
-      source.removeEventListener('selection', onSelection as EventListener);
-      source.close();
+      // Unregister this component's listener
+      if (listenerRef.current) {
+        globalConnectionListeners.delete(listenerRef.current);
+      }
+      // Don't close global connection - other components might use it
     };
   }, []);
 
@@ -335,5 +353,68 @@ function ConnectionControl({ connected, liveId, connecting, onConnect, onDisconn
         )}
       </div>
     </div>
+  );
+}
+
+type ChatItemProps = {
+  message: ChatMessage;
+  isSelected: boolean;
+  onSelect: () => void;
+};
+
+function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
+  return (
+    <button
+      className={isSelected ? 'chatItem chatItem--active' : 'chatItem'}
+      onClick={onSelect}
+    >
+      <div className="chatItem__header">
+        {message.authorPhoto && (
+          <img src={message.authorPhoto} alt={message.author} className="chatItem__avatar" />
+        )}
+        <div className="chatItem__meta">
+          <div className="chatItem__authorLine">
+            <span className="chatItem__author">{message.author}</span>
+            {message.badges && message.badges.map((badge, i) => (
+              <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
+                {badge.type === 'moderator' && '🛡️'}
+                {badge.type === 'member' && '⭐'}
+                {badge.type === 'verified' && '✓'}
+              </span>
+            ))}
+          </div>
+          <time className="chatItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
+        </div>
+      </div>
+      {message.superChat && (
+        <div className="chatItem__superchat" style={{ backgroundColor: message.superChat.color }}>
+          💰 {message.superChat.amount}
+        </div>
+      )}
+      <p className="chatItem__text">{message.text}</p>
+    </button>
+  );
+}
+
+function MemberItem({ message, isSelected, onSelect }: ChatItemProps) {
+  return (
+    <button
+      className={isSelected ? 'memberItem memberItem--active' : 'memberItem'}
+      onClick={onSelect}
+    >
+      <div className="memberItem__header">
+        {message.authorPhoto && (
+          <img src={message.authorPhoto} alt={message.author} className="memberItem__avatar" />
+        )}
+        <div className="memberItem__info">
+          <span className="memberItem__author">{message.author}</span>
+          <span className="memberItem__level">
+            {message.membershipLevel || 'New member'}
+          </span>
+          <time className="memberItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
+        </div>
+      </div>
+      {message.text && <p className="memberItem__text">{message.text}</p>}
+    </button>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { ChatMessage } from '@shared/chat';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4100';
@@ -13,9 +13,18 @@ export default function OverlayPage() {
   const [message, setMessage] = useState<ChatMessage | null>(null);
   const [connected, setConnected] = useState(false);
   const [fadingOut, setFadingOut] = useState(false);
+  const connectionRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
+    // Prevent multiple connections
+    if (connectionRef.current) {
+      console.log('[Overlay] SSE already connected');
+      return;
+    }
+
+    console.log('[Overlay] Creating SSE connection');
     const source = new EventSource(`${BACKEND_URL}/overlay/stream`);
+    connectionRef.current = source;
     
     const onSelection = (event: MessageEvent) => {
       try {
@@ -47,8 +56,10 @@ export default function OverlayPage() {
     source.onerror = () => setConnected(false);
 
     return () => {
+      console.log('[Overlay] Closing SSE connection');
       source.removeEventListener('selection', onSelection as EventListener);
       source.close();
+      connectionRef.current = null;
     };
   }, []); // Empty dependency array - only connect once
 

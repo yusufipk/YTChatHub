@@ -22,4 +22,5 @@ export type ChatMessage = {
   isVerified?: boolean;
   superChat?: SuperChatInfo;
   membershipGift?: boolean;
+  membershipLevel?: string; // e.g., "New member", "Member (6 months)", etc.
 };
