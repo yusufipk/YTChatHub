@@ -1,18 +1,18 @@
 # System Patterns
 
 ## Architecture Overview
-- **Monorepo Layout:** `pnpm` workspaces with `apps/client` (Next.js dashboard + overlay), `packages/backend` (Node ingestion + realtime gateway), `packages/shared` (types, schemas).
+- **Project Layout:** Single pnpm package with three top-level folders: `client/` (Next.js dashboard + overlay), `backend/` (Node ingestion + realtime gateway), and `shared/` (typescript definitions shared between both).
 - **Data Flow:**
-  1. Backend worker polls YouTube Live chat through the Innertube (youtubei) API, maintaining continuation tokens.
-  2. Messages stored in-memory (and optionally SQLite) and emitted over an internal event bus.
-  3. Client dashboard fetches chat via HTTP (React Query) and pushes selection back via REST.
-  4. Overlay page listens to Server-Sent Events stream for the currently highlighted message.
-- **Realtime Delivery:** SSE chosen for one-directional updates to OBS browser source; can swap to WebSocket if bidirectional control is required later.
-- **Configuration:** Environment variables drive stream IDs and optional auth tokens; local secrets persisted in `.env.local` or config files.
+  1. Backend worker polls YouTube Live chat through the Innertube (`youtubei.js`) API, maintaining continuation tokens.
+  2. Messages are stored in-memory (optionally persisted later) and emitted over an internal event bus.
+  3. Client dashboard fetches chat data via REST and pushes selection updates via REST.
+  4. Overlay page consumes a Server-Sent Events stream to stay in sync with the selected message.
+- **Realtime Delivery:** SSE for one-directional updates to OBS browser source; leave room to switch to WebSockets if we need bidirectional control later.
+- **Configuration:** `.env.local` (or process env) supplies `YOUTUBE_LIVE_ID` and optional Innertube overrides; backend picks mock mode automatically when unset.
 
 ## Key Patterns & Practices
-- Abstract ingestion behind an interface so alternate providers (official API, headless browser) can be swapped in quickly.
-- Cache Innertube visitor data and API keys locally to reduce startup latency and handle rotations gracefully.
-- Use Zod schemas in shared package to validate external responses and internal payloads.
-- Centralized error reporting/logging with structured logs for monitoring during streams.
-- Graceful degradation: exponential backoff on fetch failures, last-known overlay message cached to disk to survive restarts.
+- Abstract ingestion behind a module (`backend/src/ingestion/youtubei.ts`) so alternate providers (official API, headless browser) can be swapped in quickly.
+- Cache Innertube visitor data and API keys locally when we extend functionality, keeping startup fast and resilient to key rotations.
+- Use shared TypeScript definitions via the `@shared` path alias to maintain type safety across backend and client.
+- Centralized logging in the backend with structured payloads for easier debugging during long streams.
+- Graceful degradation: backoff strategies for fetch failures and mock-data fallback keep the UI usable even without credentials.

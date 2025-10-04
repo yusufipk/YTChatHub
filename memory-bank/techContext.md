@@ -1,17 +1,22 @@
 # Tech Context
 
 ## Primary Stack
-- **Frontend:** Next.js 14 (App Router) + React 18 + TypeScript, styled with Tailwind CSS and optional shadcn/ui components.
-- **Backend Worker:** Node.js (Fastify) with `youtubei.js` for Innertube chat ingestion, `better-sqlite3` for persistence, EventEmitter for internal pub/sub.
-- **Realtime:** Server-Sent Events for overlay updates; potential future WebSocket support via `ws`.
-- **Tooling:** `pnpm` for workspace management, ESLint + Prettier, Zod for schema validation, Vitest/Playwright for testing (to be introduced later).
+- **Frontend:** Next.js 15 (App Router) + React 19 + TypeScript, styled with handcrafted CSS for now (Tailwind/shadcn still optional future add-ons).
+- **Backend Worker:** Node.js service run with `tsx`, using `youtubei.js` for Innertube chat ingestion, `fastify` + `@fastify/cors` for REST/SSE transport, and `eventemitter3` for internal pub/sub.
+- **Shared Types:** Simple TypeScript module in `shared/chat.ts`, imported via the `@shared/*` path alias defined in `tsconfig.base.json`.
+- **Realtime:** Server-Sent Events for overlay updates; WebSockets remain a future enhancement option.
+
+## Tooling & Commands
+- Single root `package.json`; `pnpm install` manages all deps.
+- `pnpm dev` runs backend (`tsx backend/src/index.ts`) and client (`next dev client`) concurrently via `concurrently`.
+- `pnpm build` compiles the backend with `tsc` and builds the Next app; `pnpm start:backend` / `pnpm start:client` serve production bundles separately.
 
 ## Environment & Dependencies
-- No official API quota required; ingestion relies on Innertube visitor tokens produced at runtime.
-- Required env values: `YOUTUBE_LIVE_ID` (or stream URL), optional overrides for Innertube API key/context if we need to pin versions.
-- Local `.env.local` file manages configuration; sample `.env.example` committed for contributors.
+- Requires `YOUTUBE_LIVE_ID` (or full URL) to enable real chat ingestion; omitted value triggers mock mode.
+- Optional overrides for Innertube API keys/version can be supplied through env vars when needed.
+- `better-sqlite3` is included for future persistence work but not yet wired in.
 
 ## Constraints & Considerations
-- Innertube endpoints change occasionally; design ingestion to update keys dynamically and fall back to alternate strategies if responses shift.
-- Application expected to run on Windows/macOS/Linux desktops used for streaming; keep dependencies cross-platform and avoid native build steps when possible.
-- No external database by default; design backend to operate fully in-process with optional local persistence.
+- Innertube endpoints may break; keep ingestion module adaptable and plan for a headless-browser fallback.
+- Project expected to run on the streamer’s machine; dependencies must remain cross-platform and avoid heavyweight native builds where possible.
+- No separate package boundaries anymore, so TypeScript path aliases and import hygiene are important to prevent tangled relative paths.

@@ -6,9 +6,32 @@
   "license": "MIT",
   "packageManager": "pnpm@8.15.4",
   "scripts": {
-    "dev": "pnpm -r dev",
-    "build": "pnpm -r build",
-    "lint": "pnpm -r lint",
-    "start": "pnpm -r start"
+    "dev": "concurrently \"pnpm dev:backend\" \"pnpm dev:client\"",
+    "dev:backend": "tsx --env-file=.env backend/src/index.ts",
+    "dev:client": "next dev client",
+    "build": "pnpm build:backend && pnpm build:client",
+    "build:backend": "tsc -p backend/tsconfig.build.json",
+    "build:client": "next build client",
+    "start:backend": "node backend/dist/index.js",
+    "start:client": "next start client",
+    "lint": "next lint client"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "better-sqlite3": "^12.4.1",
+    "eventemitter3": "^5.0.1",
+    "fastify": "^5.6.1",
+    "next": "^15.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "youtubei.js": "^15.1.1",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.5",
+    "@types/react": "19.2.0",
+    "concurrently": "^8.2.2",
+    "tsx": "^4.19.1",
+    "typescript": "^5.9.3"
   }
 }

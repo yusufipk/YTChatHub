@@ -12,6 +12,9 @@
     "isolatedModules": true,
     "noEmit": true,
     "types": ["node"],
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["shared/*"]
+    }
   }
 }

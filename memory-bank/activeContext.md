@@ -1,19 +1,19 @@
 # Active Context
 
 ## Current Focus
-- Maintain Memory Bank documentation and scaffold the monorepo structure for the YouTube Live chat client.
-- Define onboarding flow for Innertube-based chat ingestion and configuration.
+- Simplified project layout: single pnpm package with `client/`, `backend/`, and `shared/` folders; no workspaces.
+- Backend and UI skeletons run via `pnpm dev`, ready for real stream integration and UX polish.
 
 ## Recent Decisions
-- Switch from official YouTube Data API to Innertube (`youtubei.js`) ingestion to avoid quota issues.
-- Use Next.js for operator UI and OBS overlay, with a separate backend worker for polling and realtime events.
-- Prefer Server-Sent Events for one-way overlay updates; keep WebSocket option in mind for future enhancements.
+- Removed pnpm workspaces to reduce setup friction; all dependencies now live in the root `package.json`.
+- Adopted `tsx` for running the backend in dev, so we avoid ESM loader quirks from `ts-node`.
+- Maintained Innertube (`youtubei.js`) ingestion with mock fallback to keep development unblocked without credentials.
 
 ## Immediate Next Steps
-1. Initialize `pnpm` workspace with `apps/client`, `packages/backend`, and `packages/shared` directories. (Scaffolded.)
-2. Configure baseline project files: `package.json`, `pnpm-workspace.yaml`, TS configs, linting setup. (Scaffolded.)
-3. Stub backend poller using `youtubei.js` to verify dev scripts once dependencies are installed.
+1. Verify `pnpm install` + `pnpm dev` on a clean machine, ensuring backend and client start smoothly.
+2. Harden backend ingestion (error handling, reconnection/backoff) now that the runtime setup is stable.
+3. Flesh out operator dashboard UX (filters/search, live status indicators) and document configuration in README/onboarding notes.
 
 ## Open Questions
-- How to persist or refresh Innertube context data (visitor data, API key) between sessions for reliability.
-- Whether to include optional SQLite persistence from the outset or add once basic flow is working.
+- Whether to persist Innertube visitor data between runs to reduce boot time and API churn.
+- When to introduce optional persistence (SQLite) given `better-sqlite3` is now a direct runtime dependency.
