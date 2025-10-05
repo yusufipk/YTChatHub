@@ -91,7 +91,7 @@ export default function OverlayPage() {
           )}
           {message.membershipGift && (
             <div className="overlay__membership">
-              🎁 New Member!
+              🎁 {message.membershipLevel || 'New Member'}
             </div>
           )}
           <p className="overlay__text">{message.text}</p>

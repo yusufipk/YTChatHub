@@ -152,30 +152,32 @@ function extractBadges(item: any): Badge[] {
 }
 
 function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
-  if (item.type !== 'LiveChatPaidMessage') return undefined;
+  // Support multiple superchat-like types from Innertube
+  const superTypes = new Set([
+    'LiveChatPaidMessage',
+    'LiveChatPaidSticker',
+    'liveChatPaidMessageRenderer',
+    'liveChatPaidStickerRenderer'
+  ]);
+  const typeName = String(item.type || item.item_type || item.renderer || '').trim();
+  const isSuper = superTypes.has(typeName) || !!(item.purchase_amount_text || item.purchaseAmountText);
+  if (!isSuper) return undefined;
 
   // Try multiple possible field names for the amount
   let amount = '';
-  if (item.purchase_amount_text) {
-    amount = typeof item.purchase_amount_text === 'string' 
-      ? item.purchase_amount_text 
-      : item.purchase_amount_text.simpleText || item.purchase_amount_text.toString();
-  } else if (item.purchaseAmountText) {
-    amount = typeof item.purchaseAmountText === 'string'
-      ? item.purchaseAmountText
-      : item.purchaseAmountText.simpleText || item.purchaseAmountText.toString();
+  const amt1 = item.purchase_amount_text;
+  const amt2 = item.purchaseAmountText;
+  if (amt1) {
+    amount = typeof amt1 === 'string' ? amt1 : (amt1.simpleText || amt1.toString());
+  } else if (amt2) {
+    amount = typeof amt2 === 'string' ? amt2 : (amt2.simpleText || amt2.toString());
   } else if (item.amount) {
-    amount = item.amount.toString();
+    amount = String(item.amount);
   }
-  
+
   // Try multiple possible field names for color
-  const color = item.body_background_color?.toString() 
-    || item.bodyBackgroundColor?.toString()
-    || item.headerBackgroundColor?.toString()
-    || '#1e3a8a';
-  
-  console.log('[SuperChat] Extracted:', { amount, color, rawItem: item });
-  
+  const color = (item.body_background_color ?? item.bodyBackgroundColor ?? item.headerBackgroundColor ?? '#1e3a8a').toString();
+
   return {
     amount: amount || 'Super Chat',
     currency: item.currency ?? 'USD',
@@ -191,11 +193,15 @@ function normalizeAction(action: any): ChatMessage | null {
   const item = action.item;
   if (!item) return null;
 
-  if (
-    item.type === 'LiveChatTextMessage' ||
-    item.type === 'LiveChatPaidMessage' ||
-    item.type === 'LiveChatMembershipItem'
-  ) {
+  // Normalize various live chat events
+  const itemType = String(item.type || '').trim();
+  const isText = itemType === 'LiveChatTextMessage';
+  const isPaid = !!extractSuperChatInfo(item);
+  const isMembership = itemType === 'LiveChatMembershipItem';
+  const isGiftPurchase = itemType === 'LiveChatGiftMembershipsPurchase' || itemType === 'LiveChatSponsorshipsGiftRedemptionAnnouncement';
+  const isGiftReceived = itemType === 'LiveChatGiftMembershipReceived';
+
+  if (isText || isPaid || isMembership || isGiftPurchase || isGiftReceived) {
     const badges = extractBadges(item);
     const isModerator = badges.some(b => b.type === 'moderator');
     const isMember = badges.some(b => b.type === 'member');
@@ -203,7 +209,7 @@ function normalizeAction(action: any): ChatMessage | null {
     
     // Extract membership level for new members
     let membershipLevel: string | undefined;
-    if (item.type === 'LiveChatMembershipItem') {
+    if (isMembership || isGiftPurchase || isGiftReceived) {
       membershipLevel = item.header_subtext?.toString() || 
                        item.header_primary_text?.toString() || 
                        'New member';
@@ -220,7 +226,7 @@ function normalizeAction(action: any): ChatMessage | null {
       isMember,
       isVerified,
       superChat: extractSuperChatInfo(item),
-      membershipGift: item.type === 'LiveChatMembershipItem',
+      membershipGift: isMembership || isGiftPurchase || isGiftReceived,
       membershipLevel
     };
   }
