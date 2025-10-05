@@ -195,10 +195,16 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
   let currency = '';
 
   if (amountText) {
-    const match = amountText.match(/^([\$\€\£\¥\₹\₺A-Z]+)?\s*([\d,\.]+)/);
+    // Regex to capture currency symbol/code and amount
+    // Handles: $5.00, €5,00, 5,00 €, 5.00 USD, TRY5.00
+    const match = amountText.match(/([\$\€\£\¥\₹\₺A-Z]+)?\s*([\d,\.,]+)\s*([\$\€\£\¥\₹\₺A-Z]+)?/);
     if (match) {
-      currency = match[1] || '';
+      // Prefer currency symbol before the number, fallback to after
+      currency = match[1] || match[3] || '';
       amount = match[2];
+    } else {
+      // Fallback for cases where only the number is present
+      amount = amountText;
     }
   }
 
@@ -262,7 +268,8 @@ function normalizeAction(action: any): ChatMessage | null {
       isMember,
       isVerified,
       superChat: extractSuperChatInfo(item),
-      membershipGift: isMembership || isGiftPurchase || isGiftReceived,
+      membershipGift: isMembership || isGiftReceived,
+      membershipGiftPurchase: isGiftPurchase,
       membershipLevel
     };
   }

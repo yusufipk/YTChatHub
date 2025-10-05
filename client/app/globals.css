@@ -518,7 +518,8 @@ main {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 0.25rem;
+  padding-right: 0.5rem; /* Add space for scrollbar */
+  margin-right: -0.5rem; /* Pull scrollbar into padding */
   padding-bottom: 1rem; /* Add space at the bottom */
   min-height: 0;
 }
@@ -637,6 +638,7 @@ main {
   font-size: 0.9rem;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  align-self: flex-start; /* Align to the left */
 }
 
 .chatItem__membership {
@@ -839,19 +841,17 @@ main {
 }
 
 .overlay__card {
-  padding: 2rem 2.5rem;
-  border-radius: 24px;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  border: 2px solid rgba(96, 165, 250, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  background: #1f1f1f;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 1.5rem;
-  min-width: min(600px, 90vw);
-  max-width: min(900px, 95vw);
+  gap: 0.75rem;
+  width: min(100% - 2rem, 600px);
+  max-width: 95vw;
   animation: fadeIn 0.4s ease-out;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .overlay__card--fadeOut {
@@ -860,96 +860,56 @@ main {
 
 .overlay__header {
   display: flex;
-  gap: 1rem;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.overlay__header > div {
-  display: flex;
-  flex-direction: column;
+  gap: 0.75rem;
   align-items: center;
 }
 
 .overlay__avatar {
-  width: 56px;
-  height: 56px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid rgba(96, 165, 250, 0.5);
-  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+  border: 2px solid #3a3a3a;
 }
 
 .overlay__authorLine {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .overlay__author {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #60a5fa;
-  text-shadow: 0 2px 8px rgba(96, 165, 250, 0.4);
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e5e7eb;
 }
 
 .overlay__badge {
-  font-size: 1.2rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
+  font-size: 0.9rem;
 }
 
-.overlay__badge--moderator {
-  background: rgba(239, 68, 68, 0.3);
-  border: 1px solid rgba(239, 68, 68, 0.5);
-}
-
-.overlay__badge--member {
-  background: rgba(34, 197, 94, 0.3);
-  border: 1px solid rgba(34, 197, 94, 0.5);
-}
-
-.overlay__badge--verified {
-  background: rgba(59, 130, 246, 0.3);
-  border: 1px solid rgba(59, 130, 246, 0.5);
-}
-
-.overlay__superchat {
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: 1.2rem;
+.overlay__superchat,
+.overlay__membership {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
   color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  align-self: flex-start;
 }
 
 .overlay__membership {
-  padding: 1rem 1.5rem;
   background: linear-gradient(135deg, #10b981, #059669);
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: 1.2rem;
-  color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
-  text-align: center;
 }
 
 .overlay__text {
-  font-size: clamp(1.5rem, 2.5vw, 2.2rem);
+  font-size: 1.1rem;
   line-height: 1.5;
-  color: #f1f5f9;
-  font-weight: 500;
-  text-align: center;
+  color: #d1d5db;
+  font-weight: 400;
+  text-align: left;
+  word-break: break-word;
 }
 
 .overlay__placeholder {

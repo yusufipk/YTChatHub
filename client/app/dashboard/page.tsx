@@ -54,7 +54,7 @@ export default function DashboardPage() {
   }, [pollError, overlayStatus]);
 
   const superChats = useMemo(() => messages.filter(m => m.superChat), [messages]);
-  const newMembers = useMemo(() => messages.filter(m => m.membershipGift), [messages]);
+  const newMembers = useMemo(() => messages.filter(m => m.membershipGiftPurchase), [messages]);
   const regularMessages = useMemo(() => messages.filter(m => !m.superChat && !m.membershipGift), [messages]);
 
   return (
