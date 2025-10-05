@@ -24,4 +24,5 @@ export type ChatMessage = {
   membershipGift?: boolean;
   membershipGiftPurchase?: boolean;
   membershipLevel?: string; // e.g., "New member", "Member (6 months)", etc.
+  giftCount?: number; // Number of memberships gifted
 };

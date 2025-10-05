@@ -257,6 +257,19 @@ function normalizeAction(action: any): ChatMessage | null {
                        (isPaid ? undefined : 'New member');
     }
     
+    // Extract gift count for gift purchases
+    let giftCount: number | undefined;
+    if (isGiftPurchase) {
+      const text = resolveMessageText(item);
+      const headerText = item.header_primary_text?.toString() || item.header_subtext?.toString() || '';
+      const combinedText = text + ' ' + headerText;
+      // Try to extract number from text like "Gifted 5 memberships" or "5 memberships"
+      const countMatch = combinedText.match(/(\d+)\s*(?:membership|memberships|member|members)/i);
+      if (countMatch) {
+        giftCount = parseInt(countMatch[1], 10);
+      }
+    }
+    
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
       author: String(item.author?.name ?? 'Unknown'),
@@ -268,9 +281,10 @@ function normalizeAction(action: any): ChatMessage | null {
       isMember,
       isVerified,
       superChat: extractSuperChatInfo(item),
-      membershipGift: isMembership || isGiftReceived,
+      membershipGift: isMembership,
       membershipGiftPurchase: isGiftPurchase,
-      membershipLevel
+      membershipLevel,
+      giftCount
     };
   }
 

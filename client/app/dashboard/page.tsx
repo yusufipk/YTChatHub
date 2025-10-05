@@ -54,8 +54,8 @@ export default function DashboardPage() {
   }, [pollError, overlayStatus]);
 
   const superChats = useMemo(() => messages.filter(m => m.superChat), [messages]);
-  const newMembers = useMemo(() => messages.filter(m => m.membershipGiftPurchase), [messages]);
-  const regularMessages = useMemo(() => messages.filter(m => !m.superChat && !m.membershipGift), [messages]);
+  const newMembers = useMemo(() => messages.filter(m => m.membershipGift || m.membershipGiftPurchase), [messages]);
+  const regularMessages = useMemo(() => messages.filter(m => !m.superChat && !m.membershipGift && !m.membershipGiftPurchase), [messages]);
 
   return (
     <main className="dashboard">
@@ -462,7 +462,9 @@ function MemberItem({ message, isSelected, onSelect }: ChatItemProps) {
         <div className="memberItem__info">
           <span className="memberItem__author">{message.author}</span>
           <span className="memberItem__level">
-            {message.membershipLevel || 'New member'}
+            {message.membershipGiftPurchase && message.giftCount 
+              ? `Gifted ${message.giftCount} membership${message.giftCount > 1 ? 's' : ''}`
+              : message.membershipLevel || 'New member'}
           </span>
           <time className="memberItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
         </div>

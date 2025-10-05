@@ -89,12 +89,16 @@ export default function OverlayPage() {
               💰 {message.superChat.currency}{message.superChat.amount}
             </div>
           )}
-          {message.membershipGift && (
+          {(message.membershipGift || message.membershipGiftPurchase) && (
             <div className="overlay__membership">
-              🎁 New Member!
+              {message.membershipGiftPurchase && message.giftCount
+                ? `🎁 Gifted ${message.giftCount} Membership${message.giftCount > 1 ? 's' : ''}!`
+                : message.membershipGiftPurchase 
+                  ? '🎁 Gift Purchase' 
+                  : '🎁 New Member!'}
             </div>
           )}
-          {(!message.superChat && !message.membershipGift) && message.text && (
+          {(!message.superChat && !message.membershipGift && !message.membershipGiftPurchase) && message.text && (
             <p className="overlay__text">{message.text}</p>
           )}
         </div>
