@@ -2,7 +2,8 @@
 
 ## Current Focus
 - **Live YouTube integration active**: Backend connects to real YouTube Live chat via Innertube
-- **Enhanced UI**: Modern dashboard with centered layout, gradient backgrounds, and comprehensive chat features
+- **Dark minimalist UI redesign**: Clean dashboard with dark theme (#0a0a0a background), tab-based navigation, grid layout, and minimal spacing
+- **Connection flow**: Shows connection prompt on startup, disappears after connecting to YouTube Live stream
 - **Rich message parsing**: Full support for superchats, memberships, badges (moderator, member, verified)
 
 ## Recent Decisions
@@ -16,8 +17,13 @@
 - Moved the connection control into the header (inline, centered between logo/title and status) with a compact input width
 - Fixed panel heights to fit within the viewport (no page scroll); grid rows split 1fr/1fr with internal lists scrolling so bottom edges are always visible
 - Improved parsing so superchat amounts/colors show reliably; overlay and dashboard both display the amount
+- Strengthened superchat amount extraction with nested field handling and regex-based fallback; UI now shows amount + currency on overlay and dashboard
 - Overlay membership banner now shows the membership level text
 - Membership gifts are recognized and included in the New Members list
+- Completely redesigned UI to match provided screenshot: minimal dark theme (#0a0a0a bg), compact tabs with counts, tight spacing throughout
+- Added connection prompt screen that shows initially and disappears after successful YouTube Live stream connection
+- Reduced all padding and gaps to create a more compact, space-efficient layout
+- Fixed CLEAR button to appear in bottom-right corner only when a message is selected
 
 ## Immediate Next Steps
 1. Test with live YouTube stream to verify badge parsing and superchat detection

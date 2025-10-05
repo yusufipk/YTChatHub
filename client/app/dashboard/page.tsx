@@ -59,98 +59,121 @@ export default function DashboardPage() {
 
   return (
     <main className="dashboard">
-      <header className="dashboard__header">
-        <div className="dashboard__title">
-          <h1>🎬 Live Chat Monitor</h1>
-          <p className="muted">Select a message to display on your OBS overlay</p>
-        </div>
-        <div className="dashboard__connect">
-          <ConnectionControl
-            inline
-            connected={connected}
-            liveId={liveId}
-            connecting={connecting}
-            onConnect={connect}
-            onDisconnect={disconnect}
-          />
-        </div>
-        <div className="dashboard__status">
-          <span className={`status status--${overlayStatus}`}>{statusHint}</span>
-          <span className="message-count">{messages.length} messages</span>
-        </div>
-      </header>
-
-      <section className="dashboard__grid">
-        <div className="panel panel--chat">
-          <div className="panel__header">
-            <h2>💬 Live Chat</h2>
-            {selection && (
-              <button className="btn-clear" onClick={handleClear}>
-                Clear Selection
+      {!connected && (
+        <div className="connectionPrompt">
+          <div className="connectionPrompt__content">
+            <h2>Connect to YouTube Live Stream</h2>
+            <form className="connectionPrompt__form" onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const liveId = formData.get('liveId') as string;
+              if (liveId.trim()) {
+                connect(liveId.trim());
+              }
+            }}>
+              <input
+                name="liveId"
+                type="text"
+                placeholder="Enter YouTube Live Stream ID or URL"
+                disabled={connecting}
+                autoFocus
+              />
+              <button type="submit" disabled={connecting}>
+                {connecting ? 'Connecting...' : 'Connect'}
               </button>
-            )}
-          </div>
-          <div className="chatList">
-            {regularMessages.map((message) => (
-              <ChatItem
-                key={message.id}
-                message={message}
-                isSelected={selection?.id === message.id}
-                onSelect={() => handleSelect(message)}
-              />
-            ))}
-            {regularMessages.length === 0 && (
-              <div className="chatList__empty">
-                <p>⏳ Waiting for chat messages...</p>
-              </div>
-            )}
+            </form>
           </div>
         </div>
+      )}
 
-        <div className="panel panel--super">
-          <div className="panel__header">
-            <h2>💰 Super Chats</h2>
-            <span className="badge badge--count">{superChats.length}</span>
-          </div>
-          <div className="chatList">
-            {superChats.map((message) => (
-              <ChatItem
-                key={message.id}
-                message={message}
-                isSelected={selection?.id === message.id}
-                onSelect={() => handleSelect(message)}
-              />
-            ))}
-            {superChats.length === 0 && (
-              <div className="chatList__empty">
-                <p>No super chats yet</p>
-              </div>
-            )}
-          </div>
-        </div>
+      {connected && (
+        <>
+          <header className="dashboard__tabs">
+            <div className="tab">
+              Messages <span className="tab__count">{regularMessages.length}</span>
+            </div>
+            <div className="tab">
+              Superchats <span className="tab__count">{superChats.length}</span>
+            </div>
+            <div className="tab">
+              Members <span className="tab__count">{newMembers.length}</span>
+            </div>
+          </header>
 
-        <div className="panel panel--members">
-          <div className="panel__header">
-            <h2>⭐ New Members</h2>
-            <span className="badge badge--count">{newMembers.length}</span>
-          </div>
-          <div className="chatList">
-            {newMembers.map((message) => (
-              <MemberItem
-                key={message.id}
-                message={message}
-                isSelected={selection?.id === message.id}
-                onSelect={() => handleSelect(message)}
-              />
-            ))}
-            {newMembers.length === 0 && (
-              <div className="chatList__empty">
-                <p>No new members yet</p>
+          <section className="dashboard__grid">
+            <div className="panel panel--chat">
+              <div className="panel__header">
+                <h2>💬 CHAT MESSAGES</h2>
               </div>
-            )}
-          </div>
-        </div>
-      </section>
+              <div className="chatList">
+                {regularMessages.map((message) => (
+                  <ChatItem
+                    key={message.id}
+                    message={message}
+                    isSelected={selection?.id === message.id}
+                    onSelect={() => handleSelect(message)}
+                  />
+                ))}
+                {regularMessages.length === 0 && (
+                  <div className="chatList__empty">
+                    <p>⏳ Waiting for chat messages...</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="dashboard__grid-right">
+              <div className="panel panel--super">
+                <div className="panel__header">
+                  <h2>🔥 SUPER CHATS</h2>
+                </div>
+                <div className="chatList">
+                  {superChats.map((message) => (
+                    <ChatItem
+                      key={message.id}
+                      message={message}
+                      isSelected={selection?.id === message.id}
+                      onSelect={() => handleSelect(message)}
+                    />
+                  ))}
+                  {superChats.length === 0 && (
+                    <div className="chatList__empty">
+                      <p>No super chats yet</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="panel panel--members">
+                <div className="panel__header">
+                  <h2>⭐ MEMBERSHIPS & MILESTONES</h2>
+                </div>
+                <div className="chatList">
+                  {newMembers.map((message) => (
+                    <MemberItem
+                      key={message.id}
+                      message={message}
+                      isSelected={selection?.id === message.id}
+                      onSelect={() => handleSelect(message)}
+                    />
+                  ))}
+                  {newMembers.length === 0 && (
+                    <div className="chatList__empty">
+                      <p>No new members yet</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {selection && (
+            <button className="btn-clear-fixed" onClick={handleClear}>
+              CLEAR
+            </button>
+          )}
+        </>
+      )}
     </main>
   );
 }
@@ -369,6 +392,9 @@ function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
         )}
         <div className="chatItem__meta">
           <div className="chatItem__authorLine">
+            {message.membershipLevel && (
+              <span className="chatItem__membership">{message.membershipLevel}:</span>
+            )}
             <span className="chatItem__author">{message.author}</span>
             {message.badges && message.badges.map((badge, i) => (
               <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
@@ -383,7 +409,7 @@ function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
       </div>
       {message.superChat && (
         <div className="chatItem__superchat" style={{ backgroundColor: message.superChat.color }}>
-          💰 {message.superChat.amount}
+          💰 {message.superChat.amount} {message.superChat.currency}
         </div>
       )}
       <p className="chatItem__text">{message.text}</p>

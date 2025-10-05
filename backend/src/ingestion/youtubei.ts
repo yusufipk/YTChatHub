@@ -52,6 +52,11 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
   });
 
   liveChat.on('error', (err: unknown) => {
+    const msg = (err as any)?.message || String(err);
+    if (msg && msg.includes('LiveChatReportModerationStateCommand not found')) {
+      console.warn('[Ingestion] Non-fatal parser drift (ignored):', msg);
+      return; // ignore noisy parser drift that YouTube.js JITs around
+    }
     console.error('[Ingestion] Live chat error:', err);
     emitter.emit('error', err);
   });
@@ -163,20 +168,86 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
   const isSuper = superTypes.has(typeName) || !!(item.purchase_amount_text || item.purchaseAmountText);
   if (!isSuper) return undefined;
 
-  // Try multiple possible field names for the amount
+  // Try multiple possible field names for the amount (search shallow + nested header)
   let amount = '';
-  const amt1 = item.purchase_amount_text;
-  const amt2 = item.purchaseAmountText;
-  if (amt1) {
-    amount = typeof amt1 === 'string' ? amt1 : (amt1.simpleText || amt1.toString());
-  } else if (amt2) {
-    amount = typeof amt2 === 'string' ? amt2 : (amt2.simpleText || amt2.toString());
-  } else if (item.amount) {
-    amount = String(item.amount);
+  const candidates = [
+    item.purchase_amount_text,
+    item.purchaseAmountText,
+    item.header?.purchase_amount_text,
+    item.header?.purchaseAmountText,
+    item.amount,
+    item.header?.amount,
+  ];
+
+  function toText(v: any): string {
+    if (!v) return '';
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number') return String(v);
+    if (typeof v.simpleText === 'string') return v.simpleText;
+    if (Array.isArray(v.runs)) return v.runs.map((r: any) => r.text ?? '').join('');
+    if (typeof v.toString === 'function') return v.toString();
+    return '';
   }
 
-  // Try multiple possible field names for color
-  const color = (item.body_background_color ?? item.bodyBackgroundColor ?? item.headerBackgroundColor ?? '#1e3a8a').toString();
+  for (const v of candidates) {
+    amount = toText(v);
+    if (amount) break;
+  }
+
+  // Fallback deep scan for a purchase/amount text-like field
+  if (!amount) {
+    try {
+      const stack: any[] = [item];
+      const seen = new Set<any>();
+      while (stack.length) {
+        const cur = stack.pop();
+        if (!cur || typeof cur !== 'object' || seen.has(cur)) continue;
+        seen.add(cur);
+        for (const [k, v] of Object.entries(cur)) {
+          if (/purchase.*amount.*text|purchaseAmountText|amountText|purchase_amount_text/i.test(k)) {
+            amount = toText(v);
+            if (amount) throw new Error('_found');
+          }
+          if (v && typeof v === 'object') stack.push(v);
+        }
+      }
+    } catch (e: any) {
+      if (e?.message !== '_found') throw e;
+    }
+  }
+
+  // Last resort: search any string-like leaf for a currency pattern
+  if (!amount) {
+    const currencyPattern = /([€$£¥₹]|AUD|USD|EUR|GBP|JPY|INR)\s?\d{1,3}(?:[\,\s]?\d{3})*(?:[\.,]\d{1,2})?/i;
+    const stack: any[] = [item];
+    const seen = new Set<any>();
+    while (stack.length) {
+      const cur = stack.pop();
+      if (!cur || typeof cur !== 'object' || seen.has(cur)) continue;
+      seen.add(cur);
+      for (const v of Object.values(cur)) {
+        if (typeof v === 'string') {
+          const m = v.match(currencyPattern);
+          if (m) { amount = m[0]; stack.length = 0; break; }
+        } else if (v && typeof v === 'object') {
+          stack.push(v);
+        }
+      }
+    }
+  }
+
+  // Normalize color; Innertube often provides ARGB/number
+  let rawColor = item.body_background_color ?? item.bodyBackgroundColor ?? item.headerBackgroundColor;
+  let color = '#1e3a8a';
+  if (rawColor != null) {
+    if (typeof rawColor === 'number') {
+      const rgb = (rawColor & 0x00ffffff).toString(16).padStart(6, '0');
+      color = `#${rgb}`;
+    } else {
+      const s = String(rawColor);
+      color = s.startsWith('#') ? s : `#${s}`;
+    }
+  }
 
   return {
     amount: amount || 'Super Chat',
