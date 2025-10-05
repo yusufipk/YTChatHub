@@ -111,6 +111,13 @@ main {
   gap: 1rem;
 }
 
+.dashboard__connect {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+}
+
 .message-count {
   padding: 0.5rem 1rem;
   background: rgba(255, 255, 255, 0.08);
@@ -122,24 +129,57 @@ main {
 
 .dashboard__grid {
   flex: 1;
-  display: flex;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: minmax(420px, 2.1fr) minmax(340px, 1.5fr);
+  justify-content: center;
+  align-items: stretch;
+  column-gap: 0.6rem;
+  row-gap: 3rem;
+  align-content: start;
   padding: 1rem clamp(1rem, 3vw, 2rem);
   width: 100%;
-  max-width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
-@media (max-width: 1100px) {
+.panel--chat {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.panel--super {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.panel--members {
+  grid-column: 2;
+  grid-row: 2;
+  margin-top: 0rem;
+}
+
+@media (max-width: 1180px) {
   .dashboard__grid {
-    flex-direction: column;
+    grid-template-columns: minmax(360px, 1.8fr) minmax(300px, 1fr);
+    column-gap: 0.5rem;
+    row-gap: 0.75rem;
   }
-  
-  .chatColumn,
-  .splitColumn {
-    flex: 1 1 auto;
+}
+
+@media (max-width: 1024px) {
+  .dashboard__grid {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 760px;
+  }
+
+  .panel--chat,
+  .panel--super,
+  .panel--members {
+    grid-column: auto;
+    grid-row: auto;
+    margin-top: 0;
   }
 }
 
@@ -151,21 +191,24 @@ main {
 }
 
 .connectionControl__content {
-  max-width: 1400px;
+  max-width: 960px;
   margin: 0 auto;
+  display: flex;
+  justify-content: center;
 }
 
 .connectionControl__connected {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 1rem;
+  gap: 1.25rem;
+  flex-wrap: wrap;
 }
 
 .connectionControl__info {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .connectionControl__badge {
@@ -185,15 +228,19 @@ main {
 
 .connectionControl__form {
   display: flex;
-  gap: 1rem;
+  gap: 1.25rem;
   align-items: flex-end;
+  justify-content: center;
+  width: 100%;
 }
 
 .connectionControl__input {
-  flex: 1;
+  flex: 0 1 460px;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  max-width: 100%;
+  min-width: 280px;
 }
 
 .connectionControl__input label {
@@ -269,37 +316,50 @@ main {
   .connectionControl__form {
     flex-direction: column;
     align-items: stretch;
+    justify-content: flex-start;
   }
   
   .connectionControl__connected {
     flex-direction: column;
     align-items: flex-start;
+    width: 100%;
+  }
+
+  .connectionControl__content {
+    justify-content: flex-start;
   }
 }
 
-.chatColumn {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 55%;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
+/* Inline variant for header placement */
+.connectionControl--inline {
+  width: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
-.splitColumn {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 45%;
-  gap: 0.5rem;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
+.connectionControl--inline .connectionControl__content {
+  max-width: none;
+  margin: 0;
 }
 
-.splitColumn .panel {
-  flex: 1;
-  min-height: 0;
+.connectionControl--inline .connectionControl__form {
+  gap: 0.75rem;
 }
+
+.connectionControl--inline .connectionControl__input {
+  flex: 0 1 360px;
+  min-width: 240px;
+}
+
+.connectionControl--inline .btn-connect {
+  padding: 0.6rem 1.1rem;
+}
+
+.connectionControl--inline .connectionControl__connected {
+  gap: 0.75rem;
+}
+
 
 .panel {
   background: rgba(30, 41, 59, 0.4);
@@ -687,6 +747,8 @@ main {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 1.5rem;
   min-width: min(600px, 90vw);
   max-width: min(900px, 95vw);
@@ -701,8 +763,16 @@ main {
   display: flex;
   gap: 1rem;
   align-items: center;
+  justify-content: center;
+  width: 100%;
   padding-bottom: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.overlay__header > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .overlay__avatar {
@@ -717,6 +787,7 @@ main {
 .overlay__authorLine {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
@@ -759,6 +830,7 @@ main {
   color: #fff;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  text-align: center;
 }
 
 .overlay__membership {
@@ -770,6 +842,7 @@ main {
   color: #fff;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+  text-align: center;
 }
 
 .overlay__text {
@@ -777,6 +850,7 @@ main {
   line-height: 1.5;
   color: #f1f5f9;
   font-weight: 500;
+  text-align: center;
 }
 
 .overlay__placeholder {
@@ -784,6 +858,10 @@ main {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .status {

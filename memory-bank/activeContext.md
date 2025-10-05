@@ -11,6 +11,9 @@
 - Enhanced `ChatMessage` type to include badges, author photos, superchat info, and membership status
 - Redesigned dashboard with gradient backgrounds, centered layout, and modern glass-morphism effects
 - Separated overlay preview into its own highlighted section that only appears when a message is selected
+- Centered overlay message card content so live chat, superchat, and membership boxes align for OBS
+- Reworked dashboard grid so live chat runs full-height on the left and super chat/new member panels stack in a centered right column with tuned spacing and clear separation between the stacked cards
+- Moved the connection control into the header (inline, centered between logo/title and status) with a compact input width
 
 ## Immediate Next Steps
 1. Test with live YouTube stream to verify badge parsing and superchat detection

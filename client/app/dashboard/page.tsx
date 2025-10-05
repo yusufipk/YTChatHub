@@ -64,96 +64,90 @@ export default function DashboardPage() {
           <h1>🎬 Live Chat Monitor</h1>
           <p className="muted">Select a message to display on your OBS overlay</p>
         </div>
+        <div className="dashboard__connect">
+          <ConnectionControl
+            inline
+            connected={connected}
+            liveId={liveId}
+            connecting={connecting}
+            onConnect={connect}
+            onDisconnect={disconnect}
+          />
+        </div>
         <div className="dashboard__status">
           <span className={`status status--${overlayStatus}`}>{statusHint}</span>
           <span className="message-count">{messages.length} messages</span>
         </div>
       </header>
 
-      <ConnectionControl
-        connected={connected}
-        liveId={liveId}
-        connecting={connecting}
-        onConnect={connect}
-        onDisconnect={disconnect}
-      />
-
       <section className="dashboard__grid">
-        {/* Main Chat Column */}
-        <div className="chatColumn">
-          <div className="panel">
-            <div className="panel__header">
-              <h2>💬 Live Chat</h2>
-              {selection && (
-                <button className="btn-clear" onClick={handleClear}>
-                  Clear Selection
-                </button>
-              )}
-            </div>
-            <div className="chatList">
-              {regularMessages.map((message) => (
-                <ChatItem
-                  key={message.id}
-                  message={message}
-                  isSelected={selection?.id === message.id}
-                  onSelect={() => handleSelect(message)}
-                />
-              ))}
-              {regularMessages.length === 0 && (
-                <div className="chatList__empty">
-                  <p>⏳ Waiting for chat messages...</p>
-                </div>
-              )}
-            </div>
+        <div className="panel panel--chat">
+          <div className="panel__header">
+            <h2>💬 Live Chat</h2>
+            {selection && (
+              <button className="btn-clear" onClick={handleClear}>
+                Clear Selection
+              </button>
+            )}
+          </div>
+          <div className="chatList">
+            {regularMessages.map((message) => (
+              <ChatItem
+                key={message.id}
+                message={message}
+                isSelected={selection?.id === message.id}
+                onSelect={() => handleSelect(message)}
+              />
+            ))}
+            {regularMessages.length === 0 && (
+              <div className="chatList__empty">
+                <p>⏳ Waiting for chat messages...</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Split Column */}
-        <div className="splitColumn">
-          {/* Super Chats - Top Half */}
-          <div className="panel">
-            <div className="panel__header">
-              <h2>💰 Super Chats</h2>
-              <span className="badge badge--count">{superChats.length}</span>
-            </div>
-            <div className="chatList">
-              {superChats.map((message) => (
-                <ChatItem
-                  key={message.id}
-                  message={message}
-                  isSelected={selection?.id === message.id}
-                  onSelect={() => handleSelect(message)}
-                />
-              ))}
-              {superChats.length === 0 && (
-                <div className="chatList__empty">
-                  <p>No super chats yet</p>
-                </div>
-              )}
-            </div>
+        <div className="panel panel--super">
+          <div className="panel__header">
+            <h2>💰 Super Chats</h2>
+            <span className="badge badge--count">{superChats.length}</span>
           </div>
+          <div className="chatList">
+            {superChats.map((message) => (
+              <ChatItem
+                key={message.id}
+                message={message}
+                isSelected={selection?.id === message.id}
+                onSelect={() => handleSelect(message)}
+              />
+            ))}
+            {superChats.length === 0 && (
+              <div className="chatList__empty">
+                <p>No super chats yet</p>
+              </div>
+            )}
+          </div>
+        </div>
 
-          {/* New Members - Bottom Half */}
-          <div className="panel">
-            <div className="panel__header">
-              <h2>⭐ New Members</h2>
-              <span className="badge badge--count">{newMembers.length}</span>
-            </div>
-            <div className="chatList">
-              {newMembers.map((message) => (
-                <MemberItem
-                  key={message.id}
-                  message={message}
-                  isSelected={selection?.id === message.id}
-                  onSelect={() => handleSelect(message)}
-                />
-              ))}
-              {newMembers.length === 0 && (
-                <div className="chatList__empty">
-                  <p>No new members yet</p>
-                </div>
-              )}
-            </div>
+        <div className="panel panel--members">
+          <div className="panel__header">
+            <h2>⭐ New Members</h2>
+            <span className="badge badge--count">{newMembers.length}</span>
+          </div>
+          <div className="chatList">
+            {newMembers.map((message) => (
+              <MemberItem
+                key={message.id}
+                message={message}
+                isSelected={selection?.id === message.id}
+                onSelect={() => handleSelect(message)}
+              />
+            ))}
+            {newMembers.length === 0 && (
+              <div className="chatList__empty">
+                <p>No new members yet</p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -304,9 +298,10 @@ type ConnectionControlProps = {
   connecting: boolean;
   onConnect: (liveId: string) => void;
   onDisconnect: () => void;
+  inline?: boolean;
 };
 
-function ConnectionControl({ connected, liveId, connecting, onConnect, onDisconnect }: ConnectionControlProps) {
+function ConnectionControl({ connected, liveId, connecting, onConnect, onDisconnect, inline }: ConnectionControlProps) {
   const [inputValue, setInputValue] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -317,7 +312,7 @@ function ConnectionControl({ connected, liveId, connecting, onConnect, onDisconn
   };
 
   return (
-    <div className="connectionControl">
+    <div className={"connectionControl" + (inline ? " connectionControl--inline" : "") }>
       <div className="connectionControl__content">
         {connected ? (
           <div className="connectionControl__connected">
