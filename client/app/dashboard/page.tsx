@@ -107,11 +107,13 @@ export default function DashboardPage() {
             <div className="panel panel--chat">
               <div className="panel__header">
                 <h2>💬 CHAT MESSAGES</h2>
-                {selection && (
-                  <button className="btn-clear-inline" onClick={handleClear}>
-                    CLEAR
-                  </button>
-                )}
+                <button 
+                  className="btn-clear-inline" 
+                  onClick={handleClear}
+                  disabled={!selection}
+                >
+                  CLEAR
+                </button>
               </div>
               <ChatListPanel
                 messages={regularMessages}
@@ -393,15 +395,28 @@ type ChatListPanelProps = {
 
 function ChatListPanel({ messages, renderItem, emptyState }: ChatListPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const wasAtBottomRef = useRef(true);
 
   useEffect(() => {
     const node = scrollRef.current;
-    if (node) {
-      // Check if user is near the bottom before scrolling
-      const isAtBottom = node.scrollHeight - node.scrollTop - node.clientHeight <= 100;
-      if (isAtBottom) {
+    if (!node) return;
+
+    const handleScroll = () => {
+      const isAtBottom = node.scrollHeight - node.scrollTop - node.clientHeight <= 150;
+      wasAtBottomRef.current = isAtBottom;
+    };
+
+    node.addEventListener('scroll', handleScroll);
+    return () => node.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node && wasAtBottomRef.current) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
         node.scrollTop = node.scrollHeight;
-      }
+      });
     }
   }, [messages]);
 

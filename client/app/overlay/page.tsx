@@ -83,6 +83,26 @@ export default function OverlayPage() {
                 <p className="overlay__superchat-text">{message.text}</p>
               )}
             </>
+          ) : (message.membershipGift || message.membershipGiftPurchase) ? (
+            <>
+              <div className="overlay__membership-header">
+                {message.authorPhoto && (
+                  <img src={message.authorPhoto} alt={message.author} className="overlay__membership-avatar" />
+                )}
+                <div className="overlay__membership-info">
+                  <span className="overlay__membership-name">{message.author}</span>
+                  <span className="overlay__membership-separator"> - </span>
+                  <span className="overlay__membership-level">
+                    {message.membershipGiftPurchase && message.giftCount
+                      ? `Sent ${message.giftCount} Gift Membership${message.giftCount > 1 ? 's' : ''}`
+                      : message.membershipLevel || 'New Member'}
+                  </span>
+                </div>
+              </div>
+              {message.text && (
+                <p className="overlay__membership-text">{message.text}</p>
+              )}
+            </>
           ) : (
             <>
               <div className="overlay__header">
@@ -102,15 +122,6 @@ export default function OverlayPage() {
                   </div>
                 </div>
               </div>
-              {(message.membershipGift || message.membershipGiftPurchase) && (
-                <div className="overlay__membership">
-                  {message.membershipGiftPurchase && message.giftCount
-                    ? `🎁 Sent ${message.giftCount} Gift Membership${message.giftCount > 1 ? 's' : ''}!`
-                    : message.membershipGiftPurchase 
-                      ? '🎁 Gift Purchase' 
-                      : '🎁 New Member!'}
-                </div>
-              )}
               {message.text && (
                 <p className="overlay__text">{message.text}</p>
               )}

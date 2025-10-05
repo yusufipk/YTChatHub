@@ -502,9 +502,16 @@ main {
   margin-left: auto;
 }
 
-.btn-clear-inline:hover {
+.btn-clear-inline:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.25);
   transform: translateY(-1px);
+}
+
+.btn-clear-inline:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.15);
 }
 
 .btn-clear-fixed {
@@ -565,8 +572,11 @@ main {
   overflow-x: hidden;
   padding-right: 0.5rem; /* Add space for scrollbar */
   margin-right: -0.5rem; /* Pull scrollbar into padding */
-  padding-bottom: 1rem; /* Add space at the bottom */
+  padding-bottom: 2rem; /* Add more space at the bottom */
   min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .chatList::-webkit-scrollbar {
@@ -607,6 +617,9 @@ main {
   transition: all 150ms ease;
   cursor: pointer;
   flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .chatItem:hover {
@@ -640,6 +653,8 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chatItem__authorLine {
@@ -647,6 +662,8 @@ main {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chatItem__author {
@@ -695,6 +712,8 @@ main {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   margin-left: 0.5rem;
   display: inline-block;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .chatItem__membership {
@@ -1004,6 +1023,61 @@ main {
 
 .overlay__membership {
   background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.overlay__membership-header {
+  padding: 1rem 1.5rem;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.overlay__membership-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.overlay__membership-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.overlay__membership-name {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.overlay__membership-separator {
+  font-size: 1.4rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.overlay__membership-level {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.overlay__membership-text {
+  padding: 1rem 1.5rem;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #e5e7eb;
+  font-weight: 400;
+  text-align: left;
+  word-break: break-word;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0 0 12px 12px;
+  margin: 0;
 }
 
 .overlay__text {
