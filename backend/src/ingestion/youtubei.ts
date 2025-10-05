@@ -164,13 +164,15 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
     'liveChatPaidStickerRenderer'
   ]);
   const typeName = String(item.type || item.item_type || item.renderer || '').trim();
-  const isSuper = superTypes.has(typeName) || !!(item.purchase_amount_text || item.purchaseAmountText);
+  const isSuper = superTypes.has(typeName) || !!(item.purchase_amount);
   if (!isSuper) return undefined;
 
   let amountText = '';
   const candidates = [
-    item.purchase_amount_text,
+    item.purchase_amount,  // Correct property name from youtubei.js docs
+    item.purchase_amount_text,  // Fallback
     item.purchaseAmountText,
+    item.header?.purchase_amount,
     item.header?.purchase_amount_text,
     item.header?.purchaseAmountText,
     item.amount,
@@ -183,6 +185,9 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
     if (typeof v === 'number') return String(v);
     if (typeof v.simpleText === 'string') return v.simpleText;
     if (Array.isArray(v.runs)) return v.runs.map((r: any) => r.text ?? '').join('');
+    if (typeof v.toString === 'function' && v.toString !== Object.prototype.toString) {
+      return v.toString();
+    }
     return '';
   }
 
@@ -191,21 +196,26 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
     if (amountText) break;
   }
 
-  let amount = 'Super Chat';
+  let amount = '';
   let currency = '';
 
   if (amountText) {
     // Regex to capture currency symbol/code and amount
-    // Handles: $5.00, €5,00, 5,00 €, 5.00 USD, TRY5.00
-    const match = amountText.match(/([\$\€\£\¥\₹\₺A-Z]+)?\s*([\d,\.,]+)\s*([\$\€\£\¥\₹\₺A-Z]+)?/);
+    // Handles: $5.00, €5,00, 5,00 €, 5.00 USD, TRY5.00, TRY 55, etc.
+    const match = amountText.match(/([\$\€\£\¥\₹\₺]|[A-Z]{2,3})?\s*([\d,\.]+)\s*([\$\€\£\¥\₹\₺]|[A-Z]{2,3})?/);
     if (match) {
-      // Prefer currency symbol before the number, fallback to after
+      // Prefer currency symbol/code before the number, fallback to after
       currency = match[1] || match[3] || '';
       amount = match[2];
     } else {
-      // Fallback for cases where only the number is present
+      // Fallback: use the whole text if no pattern matches
       amount = amountText;
     }
+  }
+  
+  // If we still don't have an amount, use a default
+  if (!amount) {
+    amount = 'Super Chat';
   }
 
   let rawColor = item.body_background_color ?? item.bodyBackgroundColor ?? item.headerBackgroundColor;
@@ -237,13 +247,38 @@ function normalizeAction(action: any): ChatMessage | null {
 
   // Normalize various live chat events
   const itemType = String(item.type || '').trim();
+  const messageText = resolveMessageText(item).toLowerCase();
+  
   const isText = itemType === 'LiveChatTextMessage';
   const isPaid = !!extractSuperChatInfo(item);
   const isMembership = itemType === 'LiveChatMembershipItem';
-  const isGiftPurchase = itemType === 'LiveChatGiftMembershipsPurchase' || itemType === 'LiveChatSponsorshipsGiftRedemptionAnnouncement';
-  const isGiftReceived = itemType === 'LiveChatGiftMembershipReceived';
+  const isGiftPurchase = itemType === 'LiveChatSponsorshipsGiftPurchaseAnnouncement';
+  const isGiftReceived = itemType === 'LiveChatSponsorshipsGiftRedemptionAnnouncement';
+  
+  // Check if the message text indicates it's a gift recipient message
+  const isGiftRecipientMessage = 
+    messageText.includes('received a gift membership') || 
+    messageText.includes('received a membership gift') ||
+    messageText.includes('received a gift') ||
+    /received\s+a\s+.*membership.*by/i.test(messageText);
 
-  if (isText || isPaid || isMembership || isGiftPurchase || isGiftReceived) {
+  // Log all gift-related messages for debugging
+  if (isGiftPurchase || isGiftReceived || isGiftRecipientMessage) {
+    console.log(`[Gift Debug] Type: ${itemType}, Author: ${item.author?.name}, Text: "${messageText}", Purchase: ${isGiftPurchase}, Received: ${isGiftReceived}, TextPattern: ${isGiftRecipientMessage}`);
+  }
+
+  // Ignore gift received messages - we only care about the purchaser
+  if (isGiftReceived || isGiftRecipientMessage) {
+    console.log(`[Gift] Filtering out recipient message from: ${item.author?.name}`);
+    return null;
+  }
+  
+  // Log gift purchase messages for debugging
+  if (isGiftPurchase) {
+    console.log(`[Chat] Gift purchase detected - Author: ${item.author?.name}, Type: ${itemType}, Text: ${messageText}`);
+  }
+
+  if (isText || isPaid || isMembership || isGiftPurchase) {
     const badges = extractBadges(item);
     const isModerator = badges.some(b => b.type === 'moderator');
     const isMember = badges.some(b => b.type === 'member');
@@ -251,7 +286,7 @@ function normalizeAction(action: any): ChatMessage | null {
     
     // Extract membership level for new members
     let membershipLevel: string | undefined;
-    if (isMembership || isGiftPurchase || isGiftReceived || isPaid) {
+    if (isMembership || isGiftPurchase || isPaid) {
       membershipLevel = item.header_subtext?.toString() || 
                        item.header_primary_text?.toString() || 
                        (isPaid ? undefined : 'New member');
@@ -263,8 +298,9 @@ function normalizeAction(action: any): ChatMessage | null {
       const text = resolveMessageText(item);
       const headerText = item.header_primary_text?.toString() || item.header_subtext?.toString() || '';
       const combinedText = text + ' ' + headerText;
-      // Try to extract number from text like "Gifted 5 memberships" or "5 memberships"
-      const countMatch = combinedText.match(/(\d+)\s*(?:membership|memberships|member|members)/i);
+      
+      // Try to extract number from text like "Gifted 5 memberships", "Sent 5 gift memberships", or "5 memberships"
+      const countMatch = combinedText.match(/(?:sent|gifted)?\s*(\d+)\s*(?:gift\s*)?(?:membership|memberships|member|members)/i);
       if (countMatch) {
         giftCount = parseInt(countMatch[1], 10);
       }

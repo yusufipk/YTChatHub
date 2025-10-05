@@ -9,7 +9,7 @@ const MAX_MESSAGES = 500;
 export async function startBackend() {
   const fastify = Fastify({
     logger: {
-      level: 'info'
+      level: 'warn', // Only show warnings and errors, not every request
     }
   });
 
@@ -38,7 +38,6 @@ export async function startBackend() {
       ingestion = await bootstrapInnertube(parsedLiveId);
       console.log(`[Backend] ✓ YouTube chat connected successfully`);
       ingestion.emitter.on('message', (message) => {
-        console.log(`[Chat] ${message.author}: ${message.text}`);
         store.push(message);
         if (store.length > MAX_MESSAGES) {
           store.splice(0, store.length - MAX_MESSAGES);
@@ -106,7 +105,6 @@ export async function startBackend() {
       console.log(`[Backend] ✓ YouTube chat connected successfully`);
       
       ingestion.emitter.on('message', (message) => {
-        console.log(`[Chat] ${message.author}: ${message.text}`);
         store.push(message);
         if (store.length > MAX_MESSAGES) {
           store.splice(0, store.length - MAX_MESSAGES);

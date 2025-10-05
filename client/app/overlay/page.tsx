@@ -67,39 +67,54 @@ export default function OverlayPage() {
     <main className="overlay">
       {message ? (
         <div className={`overlay__card ${fadingOut ? 'overlay__card--fadeOut' : ''}`}>
-          <div className="overlay__header">
-            {message.authorPhoto && (
-              <img src={message.authorPhoto} alt={message.author} className="overlay__avatar" />
-            )}
-            <div>
-              <div className="overlay__authorLine">
-                <span className="overlay__author">{message.author}</span>
-                {message.badges && message.badges.map((badge, i) => (
-                  <span key={i} className={`overlay__badge overlay__badge--${badge.type}`} title={badge.label}>
-                    {badge.type === 'moderator' && '🛡️'}
-                    {badge.type === 'member' && '⭐'}
-                    {badge.type === 'verified' && '✓'}
-                  </span>
-                ))}
+          {message.superChat ? (
+            <>
+              <div className="overlay__superchat-header" style={{ backgroundColor: message.superChat.color }}>
+                {message.authorPhoto && (
+                  <img src={message.authorPhoto} alt={message.author} className="overlay__superchat-avatar" />
+                )}
+                <span className="overlay__superchat-name">{message.author}</span>
+                <span className="overlay__superchat-separator"> - </span>
+                <span className="overlay__superchat-amount">
+                  {message.superChat.currency}{message.superChat.currency ? ' ' : ''}{message.superChat.amount}
+                </span>
               </div>
-            </div>
-          </div>
-          {message.superChat && (
-            <div className="overlay__superchat" style={{ backgroundColor: message.superChat.color }}>
-              💰 {message.superChat.currency}{message.superChat.amount}
-            </div>
-          )}
-          {(message.membershipGift || message.membershipGiftPurchase) && (
-            <div className="overlay__membership">
-              {message.membershipGiftPurchase && message.giftCount
-                ? `🎁 Gifted ${message.giftCount} Membership${message.giftCount > 1 ? 's' : ''}!`
-                : message.membershipGiftPurchase 
-                  ? '🎁 Gift Purchase' 
-                  : '🎁 New Member!'}
-            </div>
-          )}
-          {(!message.superChat && !message.membershipGift && !message.membershipGiftPurchase) && message.text && (
-            <p className="overlay__text">{message.text}</p>
+              {message.text && (
+                <p className="overlay__superchat-text">{message.text}</p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="overlay__header">
+                {message.authorPhoto && (
+                  <img src={message.authorPhoto} alt={message.author} className="overlay__avatar" />
+                )}
+                <div>
+                  <div className="overlay__authorLine">
+                    <span className="overlay__author">{message.author}</span>
+                    {message.badges && message.badges.map((badge, i) => (
+                      <span key={i} className={`overlay__badge overlay__badge--${badge.type}`} title={badge.label}>
+                        {badge.type === 'moderator' && '🛡️'}
+                        {badge.type === 'member' && '⭐'}
+                        {badge.type === 'verified' && '✓'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {(message.membershipGift || message.membershipGiftPurchase) && (
+                <div className="overlay__membership">
+                  {message.membershipGiftPurchase && message.giftCount
+                    ? `🎁 Sent ${message.giftCount} Gift Membership${message.giftCount > 1 ? 's' : ''}!`
+                    : message.membershipGiftPurchase 
+                      ? '🎁 Gift Purchase' 
+                      : '🎁 New Member!'}
+                </div>
+              )}
+              {message.text && (
+                <p className="overlay__text">{message.text}</p>
+              )}
+            </>
           )}
         </div>
       ) : (

@@ -435,15 +435,15 @@ function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
                 {badge.type === 'verified' && '✓'}
               </span>
             ))}
+            {message.superChat && (
+              <span className="chatItem__superchat-inline" style={{ backgroundColor: message.superChat.color }}>
+                {message.superChat.currency}{message.superChat.currency ? ' ' : ''}{message.superChat.amount}
+              </span>
+            )}
           </div>
           <time className="chatItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
         </div>
       </div>
-      {message.superChat && (
-        <div className="chatItem__superchat" style={{ backgroundColor: message.superChat.color }}>
-          💰 {message.superChat.currency}{message.superChat.amount}
-        </div>
-      )}
       <p className="chatItem__text">{message.text}</p>
     </button>
   );
@@ -463,7 +463,7 @@ function MemberItem({ message, isSelected, onSelect }: ChatItemProps) {
           <span className="memberItem__author">{message.author}</span>
           <span className="memberItem__level">
             {message.membershipGiftPurchase && message.giftCount 
-              ? `Gifted ${message.giftCount} membership${message.giftCount > 1 ? 's' : ''}`
+              ? `Sent ${message.giftCount} gift membership${message.giftCount > 1 ? 's' : ''}`
               : message.membershipLevel || 'New member'}
           </span>
           <time className="memberItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
