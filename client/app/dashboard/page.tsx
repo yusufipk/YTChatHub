@@ -409,7 +409,7 @@ function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
       </div>
       {message.superChat && (
         <div className="chatItem__superchat" style={{ backgroundColor: message.superChat.color }}>
-          💰 {message.superChat.amount} {message.superChat.currency}
+          💰 {message.superChat.currency}{message.superChat.amount}
         </div>
       )}
       <p className="chatItem__text">{message.text}</p>

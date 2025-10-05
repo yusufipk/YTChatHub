@@ -519,6 +519,7 @@ main {
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.25rem;
+  padding-bottom: 1rem; /* Add space at the bottom */
   min-height: 0;
 }
 

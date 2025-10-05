@@ -157,7 +157,6 @@ function extractBadges(item: any): Badge[] {
 }
 
 function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
-  // Support multiple superchat-like types from Innertube
   const superTypes = new Set([
     'LiveChatPaidMessage',
     'LiveChatPaidSticker',
@@ -168,8 +167,7 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
   const isSuper = superTypes.has(typeName) || !!(item.purchase_amount_text || item.purchaseAmountText);
   if (!isSuper) return undefined;
 
-  // Try multiple possible field names for the amount (search shallow + nested header)
-  let amount = '';
+  let amountText = '';
   const candidates = [
     item.purchase_amount_text,
     item.purchaseAmountText,
@@ -185,58 +183,25 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
     if (typeof v === 'number') return String(v);
     if (typeof v.simpleText === 'string') return v.simpleText;
     if (Array.isArray(v.runs)) return v.runs.map((r: any) => r.text ?? '').join('');
-    if (typeof v.toString === 'function') return v.toString();
     return '';
   }
 
   for (const v of candidates) {
-    amount = toText(v);
-    if (amount) break;
+    amountText = toText(v);
+    if (amountText) break;
   }
 
-  // Fallback deep scan for a purchase/amount text-like field
-  if (!amount) {
-    try {
-      const stack: any[] = [item];
-      const seen = new Set<any>();
-      while (stack.length) {
-        const cur = stack.pop();
-        if (!cur || typeof cur !== 'object' || seen.has(cur)) continue;
-        seen.add(cur);
-        for (const [k, v] of Object.entries(cur)) {
-          if (/purchase.*amount.*text|purchaseAmountText|amountText|purchase_amount_text/i.test(k)) {
-            amount = toText(v);
-            if (amount) throw new Error('_found');
-          }
-          if (v && typeof v === 'object') stack.push(v);
-        }
-      }
-    } catch (e: any) {
-      if (e?.message !== '_found') throw e;
+  let amount = 'Super Chat';
+  let currency = '';
+
+  if (amountText) {
+    const match = amountText.match(/^([\$\€\£\¥\₹\₺A-Z]+)?\s*([\d,\.]+)/);
+    if (match) {
+      currency = match[1] || '';
+      amount = match[2];
     }
   }
 
-  // Last resort: search any string-like leaf for a currency pattern
-  if (!amount) {
-    const currencyPattern = /([€$£¥₹]|AUD|USD|EUR|GBP|JPY|INR)\s?\d{1,3}(?:[\,\s]?\d{3})*(?:[\.,]\d{1,2})?/i;
-    const stack: any[] = [item];
-    const seen = new Set<any>();
-    while (stack.length) {
-      const cur = stack.pop();
-      if (!cur || typeof cur !== 'object' || seen.has(cur)) continue;
-      seen.add(cur);
-      for (const v of Object.values(cur)) {
-        if (typeof v === 'string') {
-          const m = v.match(currencyPattern);
-          if (m) { amount = m[0]; stack.length = 0; break; }
-        } else if (v && typeof v === 'object') {
-          stack.push(v);
-        }
-      }
-    }
-  }
-
-  // Normalize color; Innertube often provides ARGB/number
   let rawColor = item.body_background_color ?? item.bodyBackgroundColor ?? item.headerBackgroundColor;
   let color = '#1e3a8a';
   if (rawColor != null) {
@@ -250,8 +215,8 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
   }
 
   return {
-    amount: amount || 'Super Chat',
-    currency: item.currency ?? 'USD',
+    amount,
+    currency,
     color
   };
 }
@@ -280,10 +245,10 @@ function normalizeAction(action: any): ChatMessage | null {
     
     // Extract membership level for new members
     let membershipLevel: string | undefined;
-    if (isMembership || isGiftPurchase || isGiftReceived) {
+    if (isMembership || isGiftPurchase || isGiftReceived || isPaid) {
       membershipLevel = item.header_subtext?.toString() || 
                        item.header_primary_text?.toString() || 
-                       'New member';
+                       (isPaid ? undefined : 'New member');
     }
     
     return {
