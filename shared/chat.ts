@@ -14,6 +14,7 @@ export type ChatMessage = {
   id: string;
   author: string;
   authorPhoto?: string;
+  authorChannelId?: string;
   text: string;
   publishedAt: string;
   badges?: Badge[];

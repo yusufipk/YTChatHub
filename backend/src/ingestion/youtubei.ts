@@ -306,10 +306,14 @@ function normalizeAction(action: any): ChatMessage | null {
       }
     }
     
+    // Extract channel ID from author object (item.author.id contains the YouTube channel ID)
+    const authorChannelId = item.author?.id;
+    
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
       author: String(item.author?.name ?? 'Unknown'),
       authorPhoto: item.author?.thumbnails?.[0]?.url,
+      authorChannelId: authorChannelId ? String(authorChannelId) : undefined,
       text: resolveMessageText(item),
       publishedAt: resolveTimestamp(item.timestamp ?? item.timestamp_usec),
       badges: badges.length > 0 ? badges : undefined,
