@@ -47,10 +47,6 @@ pnpm dev
 - The dashboard will be available at `http://localhost:3000/dashboard`.
 - The OBS overlay will be available at `http://localhost:3000/overlay`.
 
-## Usage
-
-Once the application is running, open the dashboard. It will automatically connect to the YouTube Live stream specified in your `.env` file. If you need to connect to a different stream, you can use the connection prompt on the dashboard.
-
 ## Technology Stack
 
 - **Frontend**: [Next.js](https://nextjs.org/) (React)
