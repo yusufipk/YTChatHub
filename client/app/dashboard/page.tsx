@@ -98,12 +98,20 @@ export default function DashboardPage() {
             <div className="tab">
               Members <span className="tab__count">{newMembers.length}</span>
             </div>
+            <button className="btn-reset" onClick={disconnect} title="Reset stream connection">
+              🔄
+            </button>
           </header>
 
           <section className="dashboard__grid">
             <div className="panel panel--chat">
               <div className="panel__header">
                 <h2>💬 CHAT MESSAGES</h2>
+                {selection && (
+                  <button className="btn-clear-inline" onClick={handleClear}>
+                    CLEAR
+                  </button>
+                )}
               </div>
               <ChatListPanel
                 messages={regularMessages}
@@ -169,12 +177,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </section>
-
-          {selection && (
-            <button className="btn-clear-fixed" onClick={handleClear}>
-              CLEAR
-            </button>
-          )}
         </>
       )}
     </main>
