@@ -16,6 +16,6 @@ Build a desktop-operated, open-source YouTube Live chat client that delivers a f
 - Must tolerate YouTube API rate limits and intermittent network issues without crashing.
 
 ## Success Criteria
-- Operator dashboard stays responsive during long streams (>4 hours) without memory leaks.
-- Overlay updates within ~1 second of operator selection.
-- Project documentation enables others to reproduce setup from scratch.
+- **Responsive Dashboard**: The operator dashboard remains responsive during long streams (>4 hours) without memory leaks.
+- **Instant Overlay Updates**: The OBS overlay updates in real-time when a message is selected.
+- **Comprehensive Documentation**: The project includes a detailed README and a well-maintained Memory Bank to facilitate easy setup and contribution.

@@ -105,21 +105,22 @@ export default function DashboardPage() {
               <div className="panel__header">
                 <h2>💬 CHAT MESSAGES</h2>
               </div>
-              <div className="chatList">
-                {regularMessages.map((message) => (
+              <ChatListPanel
+                messages={regularMessages}
+                renderItem={(message) => (
                   <ChatItem
                     key={message.id}
                     message={message}
                     isSelected={selection?.id === message.id}
                     onSelect={() => handleSelect(message)}
                   />
-                ))}
-                {regularMessages.length === 0 && (
+                )}
+                emptyState={
                   <div className="chatList__empty">
                     <p>⏳ Waiting for chat messages...</p>
                   </div>
-                )}
-              </div>
+                }
+              />
             </div>
 
             <div className="dashboard__grid-right">
@@ -127,42 +128,44 @@ export default function DashboardPage() {
                 <div className="panel__header">
                   <h2>🔥 SUPER CHATS</h2>
                 </div>
-                <div className="chatList">
-                  {superChats.map((message) => (
+                <ChatListPanel
+                  messages={superChats}
+                  renderItem={(message) => (
                     <ChatItem
                       key={message.id}
                       message={message}
                       isSelected={selection?.id === message.id}
                       onSelect={() => handleSelect(message)}
                     />
-                  ))}
-                  {superChats.length === 0 && (
+                  )}
+                  emptyState={
                     <div className="chatList__empty">
                       <p>No super chats yet</p>
                     </div>
-                  )}
-                </div>
+                  }
+                />
               </div>
 
               <div className="panel panel--members">
                 <div className="panel__header">
                   <h2>⭐ MEMBERSHIPS & MILESTONES</h2>
                 </div>
-                <div className="chatList">
-                  {newMembers.map((message) => (
+                <ChatListPanel
+                  messages={newMembers}
+                  renderItem={(message) => (
                     <MemberItem
                       key={message.id}
                       message={message}
                       isSelected={selection?.id === message.id}
                       onSelect={() => handleSelect(message)}
                     />
-                  ))}
-                  {newMembers.length === 0 && (
+                  )}
+                  emptyState={
                     <div className="chatList__empty">
                       <p>No new members yet</p>
                     </div>
-                  )}
-                </div>
+                  }
+                />
               </div>
             </div>
           </section>
@@ -379,6 +382,33 @@ type ChatItemProps = {
   isSelected: boolean;
   onSelect: () => void;
 };
+
+type ChatListPanelProps = {
+  messages: ChatMessage[];
+  renderItem: (message: ChatMessage) => React.ReactNode;
+  emptyState: React.ReactNode;
+};
+
+function ChatListPanel({ messages, renderItem, emptyState }: ChatListPanelProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node) {
+      // Check if user is near the bottom before scrolling
+      const isAtBottom = node.scrollHeight - node.scrollTop - node.clientHeight <= 100;
+      if (isAtBottom) {
+        node.scrollTop = node.scrollHeight;
+      }
+    }
+  }, [messages]);
+
+  return (
+    <div className="chatList" ref={scrollRef}>
+      {messages.length > 0 ? messages.map(renderItem) : emptyState}
+    </div>
+  );
+}
 
 function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
   return (

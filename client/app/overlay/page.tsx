@@ -86,15 +86,17 @@ export default function OverlayPage() {
           </div>
           {message.superChat && (
             <div className="overlay__superchat" style={{ backgroundColor: message.superChat.color }}>
-              💰 {message.superChat.amount} {message.superChat.currency}
+              💰 {message.superChat.currency}{message.superChat.amount}
             </div>
           )}
           {message.membershipGift && (
             <div className="overlay__membership">
-              🎁 {message.membershipLevel || 'New Member'}
+              🎁 New Member!
             </div>
           )}
-          <p className="overlay__text">{message.text}</p>
+          {(!message.superChat && !message.membershipGift) && message.text && (
+            <p className="overlay__text">{message.text}</p>
+          )}
         </div>
       ) : (
         <div className="overlay__placeholder">
