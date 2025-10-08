@@ -79,7 +79,17 @@ export default function OverlayPage() {
                   {message.superChat.currency}{message.superChat.currency ? ' ' : ''}{message.superChat.amount}
                 </span>
               </div>
-              {message.text && (
+              {message.runs?.length ? (
+                <p className="overlay__superchat-text">
+                  {message.runs.map((r, i) =>
+                    r.emojiUrl ? (
+                      <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
+                    ) : (
+                      <span key={i}>{r.text}</span>
+                    )
+                  )}
+                </p>
+              ) : message.text && (
                 <p className="overlay__superchat-text">{message.text}</p>
               )}
             </>
@@ -99,7 +109,17 @@ export default function OverlayPage() {
                   </span>
                 </div>
               </div>
-              {message.text && (
+              {message.runs?.length ? (
+                <p className="overlay__membership-text">
+                  {message.runs.map((r, i) =>
+                    r.emojiUrl ? (
+                      <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
+                    ) : (
+                      <span key={i}>{r.text}</span>
+                    )
+                  )}
+                </p>
+              ) : message.text && (
                 <p className="overlay__membership-text">{message.text}</p>
               )}
             </>
@@ -113,16 +133,30 @@ export default function OverlayPage() {
                   <div className="overlay__authorLine">
                     <span className="overlay__author">{message.author}</span>
                     {message.badges && message.badges.map((badge, i) => (
-                      <span key={i} className={`overlay__badge overlay__badge--${badge.type}`} title={badge.label}>
-                        {badge.type === 'moderator' && '🛡️'}
-                        {badge.type === 'member' && '⭐'}
-                        {badge.type === 'verified' && '✓'}
-                      </span>
+                      badge.imageUrl ? (
+                        <img key={i} src={badge.imageUrl} alt={badge.label} className="overlay__badge overlay__badge--image" title={badge.label} />
+                      ) : (
+                        <span key={i} className={`overlay__badge overlay__badge--${badge.type}`} title={badge.label}>
+                          {badge.type === 'moderator' && '🛡️'}
+                          {badge.type === 'member' && '⭐'}
+                          {badge.type === 'verified' && '✓'}
+                        </span>
+                      )
                     ))}
                   </div>
                 </div>
               </div>
-              {message.text && (
+              {message.runs?.length ? (
+                <p className="overlay__text">
+                  {message.runs.map((r, i) =>
+                    r.emojiUrl ? (
+                      <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
+                    ) : (
+                      <span key={i}>{r.text}</span>
+                    )
+                  )}
+                </p>
+              ) : message.text && (
                 <p className="overlay__text">{message.text}</p>
               )}
             </>

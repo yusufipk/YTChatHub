@@ -22,6 +22,25 @@ export type ChatEventEmitter = EventEmitter<{
 
 const defaultTimeout = 1500;
 
+function resolveMessageRuns(item: any) {
+  const runs: { text?: string; emojiUrl?: string; emojiAlt?: string }[] = [];
+  const rawRuns = item?.message?.runs;
+  if (Array.isArray(rawRuns)) {
+    for (const run of rawRuns) {
+      if (run?.emoji) {
+        const url = run.emoji?.image?.[0]?.url;
+        runs.push({
+          emojiUrl: url,
+          emojiAlt: run.emoji?.shortcuts?.[0] || run.emoji?.emoji_id || ''
+        });
+      } else if (run?.text) {
+        runs.push({ text: String(run.text) });
+      }
+    }
+  }
+  return runs;
+}
+
 export async function bootstrapInnertube(videoId: string): Promise<IngestionContext> {
   if (!videoId) {
     throw new Error('YOUTUBE_LIVE_ID is required to bootstrap Innertube');
@@ -114,7 +133,18 @@ function resolveMessageText(item: any): string {
   }
 
   if (Array.isArray(item.message?.runs)) {
-    return item.message.runs.map((run: any) => run.text ?? '').join('');
+    return item.message.runs.map((run: any) => {
+      // Handle emoji objects - for custom emojis, use the shortcut text
+      if (run.emoji) {
+        // For custom emojis, use the first shortcut (e.g., ":_heçkır:")
+        if (run.emoji.is_custom && run.emoji.shortcuts?.[0]) {
+          return run.emoji.shortcuts[0];
+        }
+        // For standard emojis, use emoji_id (e.g., "❤")
+        return run.emoji.emoji_id || run.text || '';
+      }
+      return run.text ?? '';
+    }).join('');
   }
 
   return '';
@@ -141,15 +171,16 @@ function extractBadges(item: any): Badge[] {
 
   for (const badge of item.author.badges) {
     const label = badge.tooltip ?? badge.label ?? '';
+    const imageUrl = badge.custom_thumbnail?.[0]?.url;
     
     if (label.toLowerCase().includes('moderator')) {
-      badges.push({ type: 'moderator', label });
+      badges.push({ type: 'moderator', label, imageUrl });
     } else if (label.toLowerCase().includes('member')) {
-      badges.push({ type: 'member', label });
+      badges.push({ type: 'member', label, imageUrl });
     } else if (label.toLowerCase().includes('verified')) {
-      badges.push({ type: 'verified', label });
+      badges.push({ type: 'verified', label, imageUrl });
     } else if (label) {
-      badges.push({ type: 'custom', label });
+      badges.push({ type: 'custom', label, imageUrl });
     }
   }
 
@@ -164,17 +195,18 @@ function extractBadgesFromHeader(header: any): Badge[] {
   for (const badge of header.author_badges) {
     const label = badge.tooltip ?? '';
     const iconType = badge.icon_type ?? '';
+    const imageUrl = badge.custom_thumbnail?.[0]?.url;
     
     if (label.toLowerCase().includes('moderator') || iconType === 'MODERATOR') {
-      badges.push({ type: 'moderator', label });
+      badges.push({ type: 'moderator', label, imageUrl });
     } else if (label.toLowerCase().includes('member')) {
-      badges.push({ type: 'member', label });
+      badges.push({ type: 'member', label, imageUrl });
     } else if (label.toLowerCase().includes('verified') || iconType === 'VERIFIED') {
-      badges.push({ type: 'verified', label });
+      badges.push({ type: 'verified', label, imageUrl });
     } else if (iconType === 'OWNER') {
-      badges.push({ type: 'custom', label: label || 'Owner' });
+      badges.push({ type: 'custom', label: label || 'Owner', imageUrl });
     } else if (label) {
-      badges.push({ type: 'custom', label });
+      badges.push({ type: 'custom', label, imageUrl });
     }
   }
 
@@ -300,13 +332,25 @@ function normalizeAction(action: any): ChatMessage | null {
     const isMember = badges.some(b => b.type === 'member');
     const isVerified = badges.some(b => b.type === 'verified');
     
-    // Extract membership level for new members and milestones
+    // Extract membership level for new members, upgrades, and milestones
     let membershipLevel: string | undefined;
     if (isMembership) {
-      // For membership items, header_primary_text contains milestone info like "Member for 9 months"
-      membershipLevel = item.header_primary_text?.text || 
-                       item.header_primary_text?.toString() || 
-                       'New member';
+      const subtext: string = item.header_subtext?.text || '';
+      const primaryText: string = item.header_primary_text?.text || '';
+
+      // Try to capture level name from common phrases
+      // e.g., "Welcome to User!" => "User"
+      // e.g., "Upgraded membership to Superuser!" => "Superuser"
+      let levelFromSub: string | undefined;
+      const welcomeMatch = subtext.match(/Welcome to\s+(.+?)!/i);
+      const upgradeMatch = subtext.match(/Upgraded membership to\s+(.+?)!/i);
+      if (welcomeMatch?.[1]) {
+        levelFromSub = welcomeMatch[1].trim();
+      } else if (upgradeMatch?.[1]) {
+        levelFromSub = upgradeMatch[1].trim();
+      }
+
+      membershipLevel = levelFromSub || primaryText || 'New member';
     } else if (isGiftPurchase) {
       // For gift purchases, we don't need membership level
       membershipLevel = undefined;
@@ -339,12 +383,19 @@ function normalizeAction(action: any): ChatMessage | null {
       ? item.header?.author_photo?.[0]?.url
       : item.author?.thumbnails?.[0]?.url;
     
+    // Build text with fallback: if no user message, show header subtext/primary for membership events
+    const resolvedText = resolveMessageText(item);
+    const membershipFallbackText = isMembership
+      ? (item.header_subtext?.text || item.header_primary_text?.text || '')
+      : '';
+
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
       author: authorName,
       authorPhoto,
       authorChannelId: authorChannelId ? String(authorChannelId) : undefined,
-      text: resolveMessageText(item),
+      text: resolvedText || membershipFallbackText,
+      runs: (() => { const r = resolveMessageRuns(item); return r.length ? r : undefined; })(),
       publishedAt: resolveTimestamp(item.timestamp ?? item.timestamp_usec),
       badges: badges.length > 0 ? badges : undefined,
       isModerator,

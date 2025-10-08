@@ -2,6 +2,7 @@ export type Badge = {
   type: 'moderator' | 'member' | 'verified' | 'custom';
   label?: string;
   icon?: string;
+  imageUrl?: string; // For custom membership badges
 };
 
 export type SuperChatInfo = {
@@ -10,12 +11,19 @@ export type SuperChatInfo = {
   color: string;
 };
 
+export type MessageRun = {
+  text?: string;
+  emojiUrl?: string;
+  emojiAlt?: string;
+};
+
 export type ChatMessage = {
   id: string;
   author: string;
   authorPhoto?: string;
   authorChannelId?: string;
   text: string;
+  runs?: MessageRun[]; // structured runs for emojis
   publishedAt: string;
   badges?: Badge[];
   isModerator?: boolean;

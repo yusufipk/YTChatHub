@@ -414,10 +414,14 @@ function ChatListPanel({ messages, renderItem, emptyState }: ChatListPanelProps)
   useEffect(() => {
     const node = scrollRef.current;
     if (node && wasAtBottomRef.current) {
-      // Use requestAnimationFrame to ensure DOM has updated
-      requestAnimationFrame(() => {
-        node.scrollTop = node.scrollHeight;
-      });
+      // Use setTimeout with requestAnimationFrame for more reliable scrolling
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          if (node && wasAtBottomRef.current) {
+            node.scrollTop = node.scrollHeight;
+          }
+        });
+      }, 0);
     }
   }, [messages]);
 
@@ -445,11 +449,15 @@ function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
             )}
             <span className="chatItem__author">{message.author}</span>
             {message.badges && message.badges.map((badge, i) => (
-              <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
-                {badge.type === 'moderator' && '🛡️'}
-                {badge.type === 'member' && '⭐'}
-                {badge.type === 'verified' && '✓'}
-              </span>
+              badge.imageUrl ? (
+                <img key={i} src={badge.imageUrl} alt={badge.label} className="badge badge--image" title={badge.label} />
+              ) : (
+                <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
+                  {badge.type === 'moderator' && '🛡️'}
+                  {badge.type === 'member' && '⭐'}
+                  {badge.type === 'verified' && '✓'}
+                </span>
+              )
             ))}
             {message.superChat && (
               <span className="chatItem__superchat-inline" style={{ backgroundColor: message.superChat.color }}>
@@ -460,7 +468,17 @@ function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
           <time className="chatItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
         </div>
       </div>
-      <p className="chatItem__text">{message.text}</p>
+      {message.runs?.length ? (
+        <p className="chatItem__text">
+          {message.runs.map((r, i) =>
+            r.emojiUrl ? (
+              <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="chatItem__emoji" />
+            ) : (
+              <span key={i}>{r.text}</span>
+            )
+          )}
+        </p>
+      ) : message.text && <p className="chatItem__text">{message.text}</p>}
     </button>
   );
 }
@@ -485,7 +503,17 @@ function MemberItem({ message, isSelected, onSelect }: ChatItemProps) {
           <time className="memberItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
         </div>
       </div>
-      {message.text && <p className="memberItem__text">{message.text}</p>}
+      {message.runs?.length ? (
+        <p className="memberItem__text">
+          {message.runs.map((r, i) =>
+            r.emojiUrl ? (
+              <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="memberItem__emoji" />
+            ) : (
+              <span key={i}>{r.text}</span>
+            )
+          )}
+        </p>
+      ) : message.text && <p className="memberItem__text">{message.text}</p>}
     </button>
   );
 }
