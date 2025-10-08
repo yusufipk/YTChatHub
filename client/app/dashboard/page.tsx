@@ -239,8 +239,9 @@ function useOverlaySelection() {
         // Heartbeat - connection is alive
       });
 
-      globalSSEConnection.onerror = () => {
-        console.error('[Dashboard] SSE error');
+      globalSSEConnection.onerror = (error) => {
+        console.error('[Dashboard] SSE connection error - will auto-reconnect', error);
+        // EventSource automatically reconnects, no action needed
       };
     }
 

@@ -38,12 +38,6 @@ export async function startBackend() {
       ingestion = await bootstrapInnertube(parsedLiveId);
       console.log(`[Backend] ✓ YouTube chat connected successfully`);
       ingestion.emitter.on('message', (message) => {
-        // Debug: Log all message attributes
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[Message Debug] Full message object:');
-        console.log(JSON.stringify(message, null, 2));
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
         store.push(message);
         if (store.length > MAX_MESSAGES) {
           store.splice(0, store.length - MAX_MESSAGES);
@@ -111,12 +105,6 @@ export async function startBackend() {
       console.log(`[Backend] ✓ YouTube chat connected successfully`);
       
       ingestion.emitter.on('message', (message) => {
-        // Debug: Log all message attributes
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('[Message Debug] Full message object:');
-        console.log(JSON.stringify(message, null, 2));
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
         store.push(message);
         if (store.length > MAX_MESSAGES) {
           store.splice(0, store.length - MAX_MESSAGES);

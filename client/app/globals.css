@@ -918,7 +918,7 @@ main {
 .overlay__card {
   background: #1f1f1f;
   border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  border-radius: 16px;
   padding: 1rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -927,6 +927,7 @@ main {
   max-width: 95vw;
   animation: fadeIn 0.4s ease-out;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
 }
 
 .overlay__card--fadeOut {

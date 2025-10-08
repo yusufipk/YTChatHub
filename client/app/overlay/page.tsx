@@ -128,11 +128,7 @@ export default function OverlayPage() {
             </>
           )}
         </div>
-      ) : (
-        <div className="overlay__placeholder">
-          <span>{connected ? 'Awaiting selection…' : 'Reconnecting…'}</span>
-        </div>
-      )}
+      ) : null}
     </main>
   );
 }

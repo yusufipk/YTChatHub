@@ -270,13 +270,6 @@ function normalizeAction(action: any): ChatMessage | null {
   const item = action.item;
   if (!item) return null;
 
-  // Debug: Log raw item from YouTube API
-  console.log('╔════════════════════════════════════════════════════════════════╗');
-  console.log('║ RAW INNERTUBE API ITEM                                         ║');
-  console.log('╚════════════════════════════════════════════════════════════════╝');
-  console.log(JSON.stringify(item, null, 2));
-  console.log('╚════════════════════════════════════════════════════════════════╝');
-
   // Normalize various live chat events
   const itemType = String(item.type || '').trim();
   const messageText = resolveMessageText(item).toLowerCase();
@@ -294,20 +287,9 @@ function normalizeAction(action: any): ChatMessage | null {
     messageText.includes('received a gift') ||
     /received\s+a\s+.*membership.*by/i.test(messageText);
 
-  // Log all gift-related messages for debugging
-  if (isGiftPurchase || isGiftReceived || isGiftRecipientMessage) {
-    console.log(`[Gift Debug] Type: ${itemType}, Author: ${item.author?.name}, Text: "${messageText}", Purchase: ${isGiftPurchase}, Received: ${isGiftReceived}, TextPattern: ${isGiftRecipientMessage}`);
-  }
-
   // Ignore gift received messages - we only care about the purchaser
   if (isGiftReceived || isGiftRecipientMessage) {
-    console.log(`[Gift] Filtering out recipient message from: ${item.author?.name}`);
     return null;
-  }
-  
-  // Log gift purchase messages for debugging
-  if (isGiftPurchase) {
-    console.log(`[Chat] Gift purchase detected - Author: ${item.author?.name}, Type: ${itemType}, Text: ${messageText}`);
   }
 
   if (isText || isPaid || isMembership || isGiftPurchase) {
