@@ -156,6 +156,31 @@ function extractBadges(item: any): Badge[] {
   return badges;
 }
 
+function extractBadgesFromHeader(header: any): Badge[] {
+  const badges: Badge[] = [];
+  
+  if (!header?.author_badges) return badges;
+
+  for (const badge of header.author_badges) {
+    const label = badge.tooltip ?? '';
+    const iconType = badge.icon_type ?? '';
+    
+    if (label.toLowerCase().includes('moderator') || iconType === 'MODERATOR') {
+      badges.push({ type: 'moderator', label });
+    } else if (label.toLowerCase().includes('member')) {
+      badges.push({ type: 'member', label });
+    } else if (label.toLowerCase().includes('verified') || iconType === 'VERIFIED') {
+      badges.push({ type: 'verified', label });
+    } else if (iconType === 'OWNER') {
+      badges.push({ type: 'custom', label: label || 'Owner' });
+    } else if (label) {
+      badges.push({ type: 'custom', label });
+    }
+  }
+
+  return badges;
+}
+
 function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
   const superTypes = new Set([
     'LiveChatPaidMessage',
@@ -245,6 +270,13 @@ function normalizeAction(action: any): ChatMessage | null {
   const item = action.item;
   if (!item) return null;
 
+  // Debug: Log raw item from YouTube API
+  console.log('╔════════════════════════════════════════════════════════════════╗');
+  console.log('║ RAW INNERTUBE API ITEM                                         ║');
+  console.log('╚════════════════════════════════════════════════════════════════╝');
+  console.log(JSON.stringify(item, null, 2));
+  console.log('╚════════════════════════════════════════════════════════════════╝');
+
   // Normalize various live chat events
   const itemType = String(item.type || '').trim();
   const messageText = resolveMessageText(item).toLowerCase();
@@ -279,40 +311,56 @@ function normalizeAction(action: any): ChatMessage | null {
   }
 
   if (isText || isPaid || isMembership || isGiftPurchase) {
-    const badges = extractBadges(item);
+    // For gift purchases, author info is in header
+    const authorSource = isGiftPurchase ? item.header : item;
+    const badges = isGiftPurchase ? extractBadgesFromHeader(item.header) : extractBadges(item);
     const isModerator = badges.some(b => b.type === 'moderator');
     const isMember = badges.some(b => b.type === 'member');
     const isVerified = badges.some(b => b.type === 'verified');
     
-    // Extract membership level for new members
+    // Extract membership level for new members and milestones
     let membershipLevel: string | undefined;
-    if (isMembership || isGiftPurchase || isPaid) {
-      membershipLevel = item.header_subtext?.toString() || 
+    if (isMembership) {
+      // For membership items, header_primary_text contains milestone info like "Member for 9 months"
+      membershipLevel = item.header_primary_text?.text || 
                        item.header_primary_text?.toString() || 
-                       (isPaid ? undefined : 'New member');
+                       'New member';
+    } else if (isGiftPurchase) {
+      // For gift purchases, we don't need membership level
+      membershipLevel = undefined;
+    } else if (isPaid) {
+      membershipLevel = undefined;
     }
     
     // Extract gift count for gift purchases
     let giftCount: number | undefined;
     if (isGiftPurchase) {
-      const text = resolveMessageText(item);
-      const headerText = item.header_primary_text?.toString() || item.header_subtext?.toString() || '';
-      const combinedText = text + ' ' + headerText;
-      
-      // Try to extract number from text like "Gifted 5 memberships", "Sent 5 gift memberships", or "5 memberships"
-      const countMatch = combinedText.match(/(?:sent|gifted)?\s*(\d+)\s*(?:gift\s*)?(?:membership|memberships|member|members)/i);
+      const primaryText = item.header?.primary_text?.text || '';
+      // Extract number from "Sent 1 Yusuf İpek gift memberships"
+      const countMatch = primaryText.match(/sent\s+(\d+)\s+/i);
       if (countMatch) {
         giftCount = parseInt(countMatch[1], 10);
       }
     }
     
-    // Extract channel ID from author object (item.author.id contains the YouTube channel ID)
-    const authorChannelId = item.author?.id;
+    // Extract channel ID - for gifts it's in author_external_channel_id
+    const authorChannelId = isGiftPurchase 
+      ? item.author_external_channel_id 
+      : item.author?.id;
+    
+    // Extract author name and photo
+    const authorName = isGiftPurchase
+      ? (item.header?.author_name?.text || 'Unknown')
+      : String(item.author?.name ?? 'Unknown');
+    
+    const authorPhoto = isGiftPurchase
+      ? item.header?.author_photo?.[0]?.url
+      : item.author?.thumbnails?.[0]?.url;
     
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
-      author: String(item.author?.name ?? 'Unknown'),
-      authorPhoto: item.author?.thumbnails?.[0]?.url,
+      author: authorName,
+      authorPhoto,
       authorChannelId: authorChannelId ? String(authorChannelId) : undefined,
       text: resolveMessageText(item),
       publishedAt: resolveTimestamp(item.timestamp ?? item.timestamp_usec),

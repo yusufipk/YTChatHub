@@ -8,7 +8,6 @@
   3. Client dashboard fetches chat data via REST and pushes selection updates via REST.
   4. Overlay page consumes a Server-Sent Events stream to stay in sync with the selected message.
 - **Realtime Delivery:** SSE for one-directional updates to OBS browser source; leave room to switch to WebSockets if we need bidirectional control later.
-- **Configuration:** `.env.local` (or process env) supplies `YOUTUBE_LIVE_ID` and optional Innertube overrides; backend picks mock mode automatically when unset.
 
 ## Key Patterns & Practices
 - Abstract ingestion behind a module (`backend/src/ingestion/youtubei.ts`) so alternate providers (official API, headless browser) can be swapped in quickly.
