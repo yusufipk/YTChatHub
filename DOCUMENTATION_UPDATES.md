@@ -42,7 +42,7 @@
 ## Commit Message Suggestions
 
 ### Main Documentation Commit
-```
+```text
 docs: update memory bank for Direction Studio release (v0.3.0)
 
 - Update activeContext.md with current focus and recent decisions
@@ -63,7 +63,7 @@ Documents the successful implementation of:
 ### Individual File Commits (Alternative Approach)
 
 #### Active Context Update
-```
+```text
 docs: update activeContext.md for Direction Studio completion
 
 - Add Direction Studio to current focus
@@ -73,7 +73,7 @@ docs: update activeContext.md for Direction Studio completion
 ```
 
 #### Progress Tracker Update
-```
+```text
 docs: update progress.md with Direction Studio milestones
 
 - Mark search/filter functionality as completed
@@ -83,7 +83,7 @@ docs: update progress.md with Direction Studio milestones
 ```
 
 #### System Patterns Update
-```
+```text
 docs: enhance systemPatterns.md with search architecture
 
 - Update architecture overview for Direction Studio
@@ -93,7 +93,7 @@ docs: enhance systemPatterns.md with search architecture
 ```
 
 #### Tech Context Update
-```
+```text
 docs: update techContext.md with search capabilities
 
 - Add search engine to primary stack
@@ -103,7 +103,7 @@ docs: update techContext.md with search capabilities
 ```
 
 #### Changelog Creation
-```
+```text
 docs: create comprehensive changelog.md for v0.3.0
 
 - Document Direction Studio major features
@@ -114,7 +114,7 @@ docs: create comprehensive changelog.md for v0.3.0
 ```
 
 #### Contribution Guide Update
-```
+```text
 docs: update contribution.md with Direction Studio completion
 
 - Add completed implementation section
