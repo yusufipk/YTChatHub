@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import EventEmitter from 'eventemitter3';
+import safeRegex from 'safe-regex2';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ChatMessage } from '@shared/chat';
@@ -8,6 +9,7 @@ import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei'
 
 const MAX_MESSAGES = 500;
 const DEFAULT_PAGE_SIZE = 100;
+const MAX_REGEX_PATTERN_LENGTH = 256;
 
 type MessageTypeFilter = 'regular' | 'superchat' | 'membership';
 type SearchMode = 'plain' | 'regex';
@@ -29,6 +31,7 @@ type ChatMessagesReply = {
   pageCount: number;
   nextCursor: string | null;
   hasMore: boolean;
+  error?: string;
   appliedFilters: {
     search: string | null;
     mode: SearchMode;
@@ -208,32 +211,51 @@ export async function startBackend() {
       ? Math.min(Math.max(1, Math.floor(parsedLimit)), MAX_MESSAGES)
       : DEFAULT_PAGE_SIZE;
 
+    const buildInvalidSearchReply = (errorMessage: string): ChatMessagesReply => {
+      reply.status(400);
+      return {
+        messages: [],
+        total: store.length,
+        totalMatches: 0,
+        pageCount: 0,
+        nextCursor: null,
+        hasMore: false,
+        error: errorMessage,
+        appliedFilters: {
+          search,
+          mode,
+          type: type ?? 'all',
+          author: author || null,
+          badges,
+          limit
+        }
+      } satisfies ChatMessagesReply;
+    };
+
     let searchRegex: RegExp | null = null;
     if (search) {
-      try {
-        if (mode === 'regex') {
-          searchRegex = new RegExp(search, 'i');
-        } else {
-          searchRegex = new RegExp(escapeRegExp(search), 'i');
+      if (mode === 'regex') {
+        if (search.length > MAX_REGEX_PATTERN_LENGTH) {
+          return buildInvalidSearchReply(
+            `Regex pattern must be ${MAX_REGEX_PATTERN_LENGTH} characters or less`
+          );
         }
-      } catch (error) {
-        reply.status(400);
-        return {
-          messages: [],
-          total: store.length,
-          totalMatches: 0,
-          pageCount: 0,
-          nextCursor: null,
-          hasMore: false,
-          appliedFilters: {
-            search,
-            mode,
-            type: type ?? 'all',
-            author: author || null,
-            badges,
-            limit
-          }
-        } satisfies ChatMessagesReply;
+
+        if (!safeRegex(search)) {
+          return buildInvalidSearchReply('Unsafe regex pattern');
+        }
+
+        try {
+          searchRegex = new RegExp(search, 'i');
+        } catch {
+          return buildInvalidSearchReply('Invalid regex pattern');
+        }
+      } else {
+        try {
+          searchRegex = new RegExp(escapeRegExp(search), 'i');
+        } catch {
+          return buildInvalidSearchReply('Invalid search pattern');
+        }
       }
     }
 
