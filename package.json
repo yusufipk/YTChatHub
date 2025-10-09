@@ -7,12 +7,12 @@
   "packageManager": "pnpm@8.15.4",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:client\"",
-    "dev:backend": "tsx backend/src/index.ts",
+    "dev:backend": "tsx backend/src/server.ts",
     "dev:client": "next dev client",
     "build": "npm run build:backend && npm run build:client",
     "build:backend": "tsc -p backend/tsconfig.build.json",
     "build:client": "next build client",
-    "start:backend": "node backend/dist/index.js",
+    "start:backend": "node backend/dist/server.js",
     "start:client": "next start client",
     "lint": "next lint client"
   },

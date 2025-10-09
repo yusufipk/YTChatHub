@@ -2,8 +2,6 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import EventEmitter from 'eventemitter3';
 import safeRegex from 'safe-regex2';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import type { ChatMessage } from '@shared/chat';
 import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei';
 
@@ -496,22 +494,4 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const isDirectExecution = (() => {
-  const entry = process.argv[1];
-  if (!entry) {
-    return false;
-  }
-  try {
-    const href = pathToFileURL(resolve(entry)).href;
-    return import.meta.url === href;
-  } catch {
-    return false;
-  }
-})();
-
-if (isDirectExecution) {
-  startBackend().catch((error) => {
-    console.error('Failed to start backend', error);
-    process.exit(1);
-  });
-}
+export type { ChatMessage } from '@shared/chat';
