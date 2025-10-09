@@ -18,6 +18,7 @@
 - **Conditional Auto-Scroll**: Implemented intelligent auto-scrolling that only activates when the user is at the bottom of the chat, preventing interruptions when reading older messages.
 - **Overlay Redesign**: The overlay has been completely restyled to match the dashboard's compact, dark theme. It now displays new member announcements.
 - **Gifted Memberships**: The 'Memberships & Milestones' panel now correctly displays the user who purchased the gift, not the recipient.
+- **Backend Auto-Run Fix**: Updated the direct execution detection so `tsx backend/src/index.ts` actually starts the server when invoked via npm scripts.
 
 ## Immediate Next Steps
 1. Test with live YouTube stream to verify badge parsing and superchat detection

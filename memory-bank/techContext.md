@@ -15,6 +15,7 @@
 - Requires `YOUTUBE_LIVE_ID` (or full URL) to enable real chat ingestion; omitted value triggers mock mode.
 - Optional overrides for Innertube API keys/version can be supplied through env vars when needed.
 - `better-sqlite3` is included for future persistence work but not yet wired in.
+- Environment files: `.env.example` documents required keys, `.env.local` powers local development, and `.env.production` should be filled with deployment values. Core variables today are `PORT`, `YOUTUBE_LIVE_ID`, and `NEXT_PUBLIC_BACKEND_URL`.
 
 ## Constraints & Considerations
 - Innertube endpoints may break; keep ingestion module adaptable and plan for a headless-browser fallback.

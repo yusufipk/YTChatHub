@@ -1,6 +1,7 @@
 node_modules
 pnpm-lock.yaml
 .env.local
+.env.production
 .env
 .DS_Store
 .next
