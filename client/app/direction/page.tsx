@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import type { ChatMessage } from '@shared/chat';
 
@@ -56,6 +56,7 @@ const initialBadgeState: BadgeFilterState = {
 const DEFAULT_LIMIT = 75;
 const SEARCH_DEBOUNCE_MS = 300;
 const MAX_PAGE_LIMIT = 200;
+const AUTO_REFRESH_INTERVAL_MS = 5000;
 
 function composeFilters(args: FilterState): FilterState {
   const { search, searchMode, messageType, authorFilter, badgeFilters, limit } = args;
@@ -122,6 +123,11 @@ export default function DirectionPage() {
     })
   );
 
+  const inflightRef = useRef(false);
+  const lastFetchRef = useRef<number>(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+
   useEffect(() => {
     const handle = setTimeout(() => {
       const nextFilters = composeFilters({
@@ -138,14 +144,40 @@ export default function DirectionPage() {
     return () => clearTimeout(handle);
   }, [search, searchMode, messageType, authorFilter, badgeFilters, limit]);
 
-  const loadMessages = useCallback(async ({ reset, cursor }: { reset: boolean; cursor?: string | null }) => {
+  const loadMessages = useCallback(async ({
+    reset,
+    cursor,
+    allowOverlap = true
+  }: {
+    reset: boolean;
+    cursor?: string | null;
+    allowOverlap?: boolean;
+  }) => {
     if (regexError && debouncedFilters.searchMode === 'regex') {
       setError(regexError);
       return;
     }
 
+    if (inflightRef.current && !allowOverlap) {
+      return;
+    }
+
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    inflightRef.current = true;
     setLoading(true);
     setError(null);
+
+    let aborted = false;
 
     try {
       const params = new URLSearchParams();
@@ -180,7 +212,9 @@ export default function DirectionPage() {
         params.set('cursor', cursor);
       }
 
-      const response = await fetch(`${BACKEND_URL}/chat/messages?${params.toString()}`);
+      const response = await fetch(`${BACKEND_URL}/chat/messages?${params.toString()}`, {
+        signal: controller.signal
+      });
       if (!response.ok) {
         const payload = await safeJson(response);
         throw new Error(payload?.error || `Request failed with status ${response.status}`);
@@ -231,15 +265,50 @@ export default function DirectionPage() {
       });
       setOverlayStatus((current) => (current.status === 'success' ? current : { status: 'idle', message: '' }));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load messages';
-      setError(message);
+      if (err instanceof Error && err.name === 'AbortError') {
+        aborted = true;
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to load messages';
+        setError(message);
+      }
     } finally {
-      setLoading(false);
+      const isLatest = requestIdRef.current === requestId;
+      if (isLatest) {
+        setLoading(false);
+        inflightRef.current = false;
+        if (!aborted) {
+          lastFetchRef.current = Date.now();
+        }
+        if (abortRef.current === controller) {
+          abortRef.current = null;
+        }
+      }
+      if (aborted || !isLatest) {
+        return;
+      }
     }
   }, [debouncedFilters, regexError]);
 
   useEffect(() => {
     void loadMessages({ reset: true });
+  }, [loadMessages]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+      if (inflightRef.current) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastFetchRef.current < AUTO_REFRESH_INTERVAL_MS) {
+        return;
+      }
+      void loadMessages({ reset: true, allowOverlap: false });
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
   }, [loadMessages]);
 
   const handleToggleBadge = (badge: keyof BadgeFilterState) => {
