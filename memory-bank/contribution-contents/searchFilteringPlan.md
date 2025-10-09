@@ -1,305 +1,100 @@
-# Search and Filtering Implementation Plan
+# Search & Filtering Feature Plan
 
-## Overview
-This document outlines the plan for implementing search and filtering functionality for chat messages in the YTChatHub dashboard. The feature will allow users to find specific messages quickly by searching text content and filtering by message types.
+## Objective
+Deliver fast, intuitive controls for locating chat messages inside the operator dashboard while preserving the current real-time experience and OBS overlay integration.
 
-## Current State Analysis
+## Background
+- Messages are stored transiently in the backend (`store: ChatMessage[]`) and surfaced through `/chat/messages` plus SSE for overlay updates.
+- The dashboard currently renders three panels (chat, super chats, memberships) with intelligent auto-scroll and selection controls, but no filtering or search UI.
+- ActiveContext and Progress docs list search/filtering as the next major feature.
 
+## Scope
+**In scope**
+- Text search across normalized message content (including runs data when available).
+- Filters for message category (regular, super chat, membership), author, and badge type.
+- Lightweight UI additions within the existing dashboard shell.
+- Query parameter extensions to `/chat/messages` with backwards compatibility.
+
+**Out of scope (for now)**
+- Persisting filters across browser sessions.
+- Full-text indexing or database storage.
+- Overlay-specific filtering beyond current selection flow.
+
+## Success Criteria
+- Operators can combine search text with any subset of filters and receive matching results within 200 ms for <= 500 cached messages.
+- Backend returns consistent, paginated responses even when filters are applied (still capped at `MAX_MESSAGES`).
+- Auto-scroll remains predictable; manual scroll state is respected when filters narrow results.
+- Overlay selection continues to work on filtered results without regression.
+
+## Requirements
+1. **Functional**
+   - `GET /chat/messages` accepts `search`, `type`, `author`, and `badges` query parameters.
+   - Frontend debounces text search (300 ms target) and reflects active filters in the UI.
+   - Clear reset action to restore the unfiltered feed.
+2. **UX**
+   - Controls fit above the tabset without crowding; collapse on screens < 1024px wide.
+   - Active filters visually indicated (e.g., badge counter, subtle highlight).
+3. **Reliability**
+   - Backend gracefully ignores malformed query values and returns full set.
+   - SSE stream remains unaffected by filter operations.
+
+## Technical Approach
 ### Backend
-- Messages are stored in a simple array (`store: ChatMessage[]`)
-- The `/chat/messages` endpoint returns all messages without any filtering capabilities
-- No search or filtering endpoints currently exist
+- Parse query parameters using Fastify typed schemas for validation.
+- Normalize filter comparisons (lowercase text, trimmed strings).
+- Extend badge filtering to match against badge `type` and `label` keywords.
+- Preserve existing mock mode by running filters over generated messages.
+- Guard against expensive operations by short-circuiting when no filters supplied.
 
 ### Frontend
-- Dashboard displays messages in three separate panels (regular messages, superchats, members)
-- No search input or filtering controls currently exist
-- Messages are displayed in chronological order with auto-scroll functionality
+- Centralize filter state in a dedicated hook (`useMessageFilters`) colocated with dashboard state.
+- Compose query strings via `URLSearchParams`, omitting empty values.
+- Integrate with existing polling or hook logic so filters re-fetch messages and react to SSE updates without desync.
+- Ensure selected message remains highlighted even when current filter hides it (display a notice and allow clearing filters).
 
-## Implementation Plan
+## Implementation Roadmap
+### Phase 1 – Baseline Search & Type Filter
+- Backend: add query support for `search` + `type`, unit test new helper functions.
+- Frontend: add search input, message-type segmented control, debounce, loading state.
+- QA: verify with mock data and live stream (if credentials available).
 
-### 1. Backend Enhancements
+### Phase 2 – Author & Badge Filters
+- Backend: extend filtering helpers for author substring matching and badge set intersection.
+- Frontend: add author input + badge checkboxes (moderator, member, verified).
+- UX: show live pill summary (e.g., "Type: Super Chat • Badge: Moderator").
 
-#### API Endpoint Extension
-Add query parameters to the existing `/chat/messages` endpoint to support filtering:
+### Phase 3 – Polish & Resilience
+- Preserve scroll intent when filters change (only auto-scroll if user is at bottom and results grow).
+- Add `%` progress or empty-state component with CTA to clear filters.
+- Optional: persist last-used filters in session storage.
+- Document API contract in README or follow-up doc (pending user approval per contribution guidelines).
 
-```
-GET /chat/messages?type=superchat&search=hello&author=John
-```
+## Testing Strategy
+- **Unit** (backend): filter predicate tests covering combinations + edge cases (case sensitivity, empty strings, missing fields).
+- **Unit** (frontend): hook tests for debounce timing and query generation.
+- **Integration**: Cypress/Playwright smoke scenario for applying multiple filters while selecting messages.
+- **Manual**: Long-running mock mode to confirm no memory leaks or degraded overlay updates.
 
-Query parameters:
-- `search` - Text search across message content
-- `type` - Filter by message type (regular, superchat, membership)
-- `author` - Filter by author name
-- `badges` - Filter by badge types (moderator, member, verified)
-
-#### Implementation Steps
-1. Modify the `/chat/messages` route to accept query parameters
-2. Implement filtering logic in the backend
-3. Add search functionality that searches across message text content
-4. Ensure filtered results are still capped at MAX_MESSAGES (500)
-
-### 2. Frontend Implementation
-
-#### UI Components to Add
-1. **Search Input Field** - Text input for searching message content
-2. **Filter Controls** - Dropdowns or checkboxes for message type filtering
-3. **Author Filter** - Input for filtering by author name
-4. **Badge Filter** - Checkboxes for filtering by badge types
-
-#### UI Placement
-- Add search and filter controls above the tabbed interface
-- Ensure controls are responsive and don't take too much vertical space
-- Consider a collapsible filter panel for smaller screens
-
-#### Implementation Steps
-1. Add state management for search and filter parameters
-2. Implement search input with debouncing to avoid excessive API calls
-3. Add filter controls with proper state management
-4. Modify the message fetching logic to include search/filter parameters
-5. Update the UI to reflect filtered results
-
-### 3. Technical Considerations
-
-#### Performance
-- Implement debouncing on search input (300-500ms delay)
-- Consider client-side filtering for smaller datasets
-- For larger datasets, implement server-side filtering
-- Add loading states during search/filter operations
-
-#### User Experience
-- Preserve auto-scroll behavior when filtering narrows results
-- Clear visual indication when filters are active
-- Easy way to reset all filters
-- Remember filter settings during session (optional)
-
-## Detailed Implementation
-
-### Backend Changes
-
-#### Route Modification
-```typescript
-// In backend/src/index.ts
-fastify.get('/chat/messages', async (request) => {
-  const { search, type, author, badges } = request.query as {
-    search?: string;
-    type?: 'regular' | 'superchat' | 'membership';
-    author?: string;
-    badges?: string; // comma-separated list
-  };
-  
-  // Apply filters to store
-  let filteredMessages = [...store];
-  
-  // Text search
-  if (search) {
-    filteredMessages = filteredMessages.filter(msg => 
-      msg.text.toLowerCase().includes(search.toLowerCase())
-    );
-  }
-  
-  // Type filter
-  if (type) {
-    switch (type) {
-      case 'superchat':
-        filteredMessages = filteredMessages.filter(msg => msg.superChat);
-        break;
-      case 'membership':
-        filteredMessages = filteredMessages.filter(msg => 
-          msg.membershipGift || msg.membershipGiftPurchase
-        );
-        break;
-      case 'regular':
-        filteredMessages = filteredMessages.filter(msg => 
-          !msg.superChat && !msg.membershipGift && !msg.membershipGiftPurchase
-        );
-        break;
-    }
-  }
-  
-  // Author filter
-  if (author) {
-    filteredMessages = filteredMessages.filter(msg => 
-      msg.author.toLowerCase().includes(author.toLowerCase())
-    );
-  }
-  
-  // Badges filter
-  if (badges) {
-    const badgeTypes = badges.split(',').map(b => b.trim());
-    filteredMessages = filteredMessages.filter(msg => 
-      msg.badges?.some(badge => badgeTypes.includes(badge.type))
-    );
-  }
-  
-  return { messages: filteredMessages };
-});
-```
-
-### Frontend Changes
-
-#### State Management
-```typescript
-// In client/app/dashboard/page.tsx
-const [searchTerm, setSearchTerm] = useState('');
-const [messageTypeFilter, setMessageTypeFilter] = useState<'all' | 'regular' | 'superchat' | 'membership'>('all');
-const [authorFilter, setAuthorFilter] = useState('');
-const [badgeFilters, setBadgeFilters] = useState<Record<string, boolean>>({
-  moderator: false,
-  member: false,
-  verified: false
-});
-```
-
-#### Search Component
-```typescript
-// Add to DashboardPage component
-function SearchAndFilterControls() {
-  return (
-    <div className="search-filter-controls">
-      <input
-        type="text"
-        placeholder="Search messages..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="search-input"
-      />
-      
-      <select 
-        value={messageTypeFilter} 
-        onChange={(e) => setMessageTypeFilter(e.target.value as any)}
-        className="filter-select"
-      >
-        <option value="all">All Messages</option>
-        <option value="regular">Regular Messages</option>
-        <option value="superchat">Superchats</option>
-        <option value="membership">Memberships</option>
-      </select>
-      
-      <input
-        type="text"
-        placeholder="Filter by author..."
-        value={authorFilter}
-        onChange={(e) => setAuthorFilter(e.target.value)}
-        className="author-filter-input"
-      />
-      
-      <div className="badge-filters">
-        <label>
-          <input
-            type="checkbox"
-            checked={badgeFilters.moderator}
-            onChange={(e) => setBadgeFilters(f => ({...f, moderator: e.target.checked}))}
-          />
-          Moderator
-        </label>
-        {/* Similar for member and verified */}
-      </div>
-    </div>
-  );
-}
-```
-
-#### Modified Fetch Logic
-```typescript
-// Update useChatMessages hook
-function useChatMessages() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [error, setError] = useState<Error | null>(null);
-  
-  // New filter states would be passed as parameters
-  const refresh = useCallback(async (filters = {}) => {
-    try {
-      const params = new URLSearchParams(filters as any).toString();
-      const response = await fetch(`${BACKEND_URL}/chat/messages?${params}`);
-      if (!response.ok) throw new Error(`Request failed: ${response.status}`);
-      const data = await response.json();
-      setMessages(Array.isArray(data.messages) ? data.messages : []);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
-    }
-  }, []);
-
-  // ... rest of implementation
-}
-```
+## Risks & Mitigations
+- **Performance degradation**: Keep filtering in-memory and short-circuit early; monitor via `/health` endpoint additions if needed.
+- **State desync**: Provide reconnection logic if SSE drops while filters active.
+- **User confusion**: Prominent "Clear filters" button and empty-state guidance.
 
 ## Open Questions
-
-1. **Performance Considerations**: 
-   - Should we implement client-side or server-side filtering for better performance?
-   - What's the expected maximum number of messages in the store at any time?
-
-2. **Search Scope**:
-   - Should search include author names only or also message content?
-   - Should we search in structured runs (emojis, etc.) as well?
-
-3. **Filter Persistence**:
-   - Should filter settings be persisted in localStorage for the session?
-   - Should we provide a way to save favorite filter combinations?
-
-4. **UI/UX Design**:
-   - How should we handle the case when filters return no results?
-   - Should we show the count of filtered results in each tab?
-   - What's the best way to organize multiple filter controls without cluttering the UI?
-
-5. **Advanced Features**:
-   - Should we support regex search or just simple text matching?
-   - Should we add date/time filtering capabilities?
-   - Should we implement sorting options (newest first, oldest first, etc.)?
-
-6. **Backend Scalability**:
-   - How should we handle search and filtering if the message store grows very large?
-   - Should we consider implementing a more sophisticated search index?
-
-7. **Internationalization**:
-   - Should search be case-sensitive or insensitive?
-   - How should we handle special characters and Unicode in search?
-
-## Implementation Phases
-
-### Phase 1: Basic Search and Filter
-- Implement basic text search on message content
-- Add message type filtering (regular, superchat, membership)
-- Simple UI with search input and type filter dropdown
-
-### Phase 2: Advanced Filtering
-- Add author filtering
-- Add badge filtering
-- Improve UI with collapsible filter panel
-
-### Phase 3: Performance and UX Improvements
-- Add debouncing to search input
-- Implement loading states
-- Add filter persistence
-- Improve search algorithm
-
-## Testing Considerations
-
-1. **Unit Tests**:
-   - Test filtering logic with various combinations of filters
-   - Test search functionality with different text inputs
-   - Test edge cases (empty search, special characters, etc.)
-
-2. **Integration Tests**:
-   - Test API endpoint with various query parameter combinations
-   - Test frontend-backend integration with filters
-
-3. **UI Tests**:
-   - Test responsive design of filter controls
-   - Test filter state management
-   - Test auto-scroll behavior with filtered results
+1. Should we expose pagination or continuation tokens when filters are active?
+   - User Answer: Yes, we should also bold the text filtered in message.
+2. Do we allow regex or advanced search operators, or keep it simple substring?
+   - User Answer: Yes, we should allow regex and advanced search operators.
+3. Should filtered results also drive overlay suggestions, or remain independent?
+   - User Answer: No, build independent it. Create a new page as called direction (for the studio team to use).
+4. Where should API documentation live (README vs dedicated docs) once implemented?
+   - User Answer: In the memory-bank/contribution-conents/api folder.
 
 ## Dependencies
+- Existing `ChatMessage` type must already include runs, badges, and membership metadata (confirmed in ActiveContext).
+- No new packages are required; rely on native JS utilities and minimal CSS additions.
 
-- No additional dependencies required for basic implementation
-- Existing TypeScript types in `@shared/chat` should be sufficient
-- May need to add debounce utility function in frontend
-
-## Timeline
-
-- **Phase 1**: 2-3 days
-- **Phase 2**: 2-3 days
-- **Phase 3**: 2-3 days
-
-Total estimated time: 6-9 days for complete implementation
+## Definition of Done
+- Feature flagged off? (No – release once tested.)
+- Updated Memory Bank (Active Context/Progress) after implementation as per contribution policy.
+- Manual verification recorded in progress log.

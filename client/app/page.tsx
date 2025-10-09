@@ -11,6 +11,9 @@ export default function HomePage() {
         <Link className="primary" href="/dashboard">
           Open Dashboard
         </Link>
+        <Link className="secondary" href="/direction">
+          Open Direction Studio
+        </Link>
         <p className="muted">Overlay preview lives at /overlay for the OBS browser source.</p>
       </section>
     </main>

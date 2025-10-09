@@ -7,6 +7,35 @@ import type { ChatMessage } from '@shared/chat';
 import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei';
 
 const MAX_MESSAGES = 500;
+const DEFAULT_PAGE_SIZE = 100;
+
+type MessageTypeFilter = 'regular' | 'superchat' | 'membership';
+type SearchMode = 'plain' | 'regex';
+
+type ChatMessagesQuery = {
+  search?: string;
+  mode?: SearchMode;
+  type?: MessageTypeFilter;
+  author?: string;
+  badges?: string;
+  cursor?: string;
+  limit?: number | string;
+};
+
+type ChatMessagesReply = {
+  messages: ChatMessage[];
+  total: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+  appliedFilters: {
+    search: string | null;
+    mode: SearchMode;
+    type: MessageTypeFilter | 'all';
+    author: string | null;
+    badges: string[];
+    limit: number;
+  };
+};
 
 export async function startBackend() {
   const fastify = Fastify({
@@ -148,9 +177,114 @@ export async function startBackend() {
     return { ok: true };
   });
 
-  fastify.get('/chat/messages', async () => ({
-    messages: store
-  }));
+  fastify.get<{ Querystring: ChatMessagesQuery; Reply: ChatMessagesReply }>('/chat/messages', async (request, reply) => {
+    const {
+      search: rawSearch,
+      mode: rawMode,
+      type: rawType,
+      author: rawAuthor,
+      badges: rawBadges,
+      cursor,
+      limit: rawLimit
+    } = request.query ?? {};
+
+    const search = typeof rawSearch === 'string' ? rawSearch.trim() : '';
+    const mode: SearchMode = rawMode === 'regex' ? 'regex' : 'plain';
+    const type: MessageTypeFilter | undefined = rawType === 'superchat' || rawType === 'membership' || rawType === 'regular'
+      ? rawType
+      : undefined;
+    const author = typeof rawAuthor === 'string' ? rawAuthor.trim() : '';
+    const badges = typeof rawBadges === 'string'
+      ? rawBadges
+          .split(',')
+          .map((badge) => badge.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+
+    const parsedLimit = typeof rawLimit === 'number' ? rawLimit : Number(rawLimit);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(1, Math.floor(parsedLimit)), MAX_MESSAGES)
+      : DEFAULT_PAGE_SIZE;
+
+    let searchRegex: RegExp | null = null;
+    if (search) {
+      try {
+        if (mode === 'regex') {
+          searchRegex = new RegExp(search, 'i');
+        } else {
+          searchRegex = new RegExp(escapeRegExp(search), 'i');
+        }
+      } catch (error) {
+        reply.status(400);
+        return {
+          messages: [],
+          total: store.length,
+          nextCursor: null,
+          hasMore: false,
+          appliedFilters: {
+            search,
+            mode,
+            type: type ?? 'all',
+            author: author || null,
+            badges,
+            limit
+          }
+        } satisfies ChatMessagesReply;
+      }
+    }
+
+    let filtered = store.slice();
+
+    if (type) {
+      filtered = filtered.filter((message) => matchesType(message, type));
+    }
+
+    if (author) {
+      const lowered = author.toLowerCase();
+      filtered = filtered.filter((message) => (message.author ?? '').toLowerCase().includes(lowered));
+    }
+
+    if (badges.length > 0) {
+      filtered = filtered.filter((message) => matchesBadges(message, badges));
+    }
+
+    if (searchRegex) {
+      filtered = filtered.filter((message) => matchesSearch(message, searchRegex!, search, mode));
+    }
+
+    const total = filtered.length;
+
+    // Pagination
+    const effectiveCursor = cursor ? cursor.trim() : '';
+    let endIndex = filtered.length;
+    if (effectiveCursor) {
+      const cursorIndex = filtered.findIndex((message) => message.id === effectiveCursor);
+      if (cursorIndex >= 0) {
+        endIndex = cursorIndex;
+      }
+    }
+
+    const startIndex = Math.max(0, endIndex - limit);
+    const page = filtered.slice(startIndex, endIndex);
+    const nextCursor = startIndex > 0 ? filtered[startIndex - 1]?.id ?? null : null;
+    const hasMore = nextCursor !== null;
+
+    reply.status(200);
+    return {
+      messages: page,
+      total,
+      nextCursor,
+      hasMore,
+      appliedFilters: {
+        search: search || null,
+        mode,
+        type: type ?? 'all',
+        author: author || null,
+        badges,
+        limit
+      }
+    } satisfies ChatMessagesReply;
+  });
 
   fastify.post<{ Body: { id?: string } }>('/overlay/selection', async (request, reply) => {
     const { id } = request.body ?? {};
@@ -260,6 +394,67 @@ function seedMockMessages(
     }
     counter += 1;
   }, 2000);
+}
+
+function matchesType(message: ChatMessage, type: MessageTypeFilter): boolean {
+  if (type === 'superchat') {
+    return Boolean(message.superChat);
+  }
+  if (type === 'membership') {
+    return Boolean(message.membershipGift || message.membershipGiftPurchase || message.membershipLevel);
+  }
+  return !message.superChat && !message.membershipGift && !message.membershipGiftPurchase;
+}
+
+function matchesBadges(message: ChatMessage, badges: string[]): boolean {
+  if (!badges.length) {
+    return true;
+  }
+
+  const badgeSet = new Set(badges.map((badge) => badge.toLowerCase()));
+  const candidateLabels = [
+    ...(message.badges ?? []).map((badge) => badge.label?.toLowerCase() ?? ''),
+    ...(message.badges ?? []).map((badge) => badge.type.toLowerCase())
+  ];
+
+  if (message.isModerator) candidateLabels.push('moderator');
+  if (message.isMember) candidateLabels.push('member');
+  if (message.isVerified) candidateLabels.push('verified');
+
+  return candidateLabels.some((label) => badgeSet.has(label));
+}
+
+function matchesSearch(message: ChatMessage, regex: RegExp, rawSearch: string, mode: SearchMode): boolean {
+  const content = collectMessageText(message);
+  if (!content) return false;
+
+  if (mode === 'regex') {
+    const pattern = new RegExp(regex.source, regex.flags.replace(/g/g, ''));
+    return pattern.test(content);
+  }
+
+  return regex.test(content);
+}
+
+function collectMessageText(message: ChatMessage): string {
+  const parts: string[] = [];
+  if (message.author) parts.push(message.author);
+  if (message.text) parts.push(message.text);
+  if (Array.isArray(message.runs)) {
+    for (const run of message.runs) {
+      if (run.text) parts.push(run.text);
+      if (run.emojiAlt) parts.push(run.emojiAlt);
+    }
+  }
+  if (message.membershipLevel) parts.push(message.membershipLevel);
+  if (message.superChat) {
+    parts.push(message.superChat.amount, message.superChat.currency);
+  }
+  return parts.join(' ').trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 const isDirectExecution = (() => {

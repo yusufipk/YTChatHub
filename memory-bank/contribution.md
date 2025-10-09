@@ -1,5 +1,8 @@
 # Contribution Guide: Fixing TypeScript import.meta Error
 
+## Contribution Rules
+- Do not modify Memory Bank files (including this guide) unless expressly requested by the user. If additional documentation updates seem valuable, surface the suggestion first and wait for approval.
+
 ## Problem
 
 We encountered the following TypeScript error:
