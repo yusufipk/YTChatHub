@@ -1331,6 +1331,61 @@ main {
   color: #fecaca;
 }
 
+.direction__viewer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  width: fit-content;
+}
+
+.direction__viewer-label {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(191, 219, 254, 0.75);
+}
+
+.direction__viewer-name {
+  font-weight: 600;
+  color: #dbeafe;
+}
+
+.direction__viewer-clear {
+  background: none;
+  border: none;
+  color: rgba(191, 219, 254, 0.9);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  transition: background 120ms ease;
+}
+
+.direction__viewer-clear:hover {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+.direction__viewer-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  display: inline-flex;
+  align-items: center;
+}
+
+.direction__viewer-button:hover {
+  color: #60a5fa;
+}
+
 .direction__error {
   padding: 0.75rem 1rem;
   border-radius: 10px;
@@ -1440,6 +1495,12 @@ main {
   gap: 0.75rem;
   font-size: 1rem;
   line-height: 1.5;
+}
+
+.direction__card-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
 }
 
 .direction__superchat {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { JSX } from 'react';
 import type { ChatMessage } from '@shared/chat';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4100';
@@ -17,6 +18,8 @@ type BadgeFilterState = {
 type ChatMessagesReply = {
   messages: ChatMessage[];
   total: number;
+  totalMatches?: number;
+  pageCount?: number;
   nextCursor: string | null;
   hasMore: boolean;
   appliedFilters?: {
@@ -35,6 +38,15 @@ type OverlayActionState = {
   message: string;
 };
 
+type FilterState = {
+  search: string;
+  searchMode: SearchMode;
+  messageType: MessageTypeFilter;
+  authorFilter: string;
+  badgeFilters: BadgeFilterState;
+  limit: number;
+};
+
 const initialBadgeState: BadgeFilterState = {
   moderator: false,
   member: false,
@@ -45,13 +57,41 @@ const DEFAULT_LIMIT = 75;
 const SEARCH_DEBOUNCE_MS = 300;
 const MAX_PAGE_LIMIT = 200;
 
+function composeFilters(args: FilterState): FilterState {
+  const { search, searchMode, messageType, authorFilter, badgeFilters, limit } = args;
+  return {
+    search,
+    searchMode,
+    messageType,
+    authorFilter,
+    badgeFilters: { ...badgeFilters },
+    limit
+  };
+}
+
+function areBadgeFiltersEqual(a: BadgeFilterState, b: BadgeFilterState): boolean {
+  return a.moderator === b.moderator && a.member === b.member && a.verified === b.verified;
+}
+
+function areFiltersEqual(a: FilterState, b: FilterState): boolean {
+  return (
+    a.search === b.search &&
+    a.searchMode === b.searchMode &&
+    a.messageType === b.messageType &&
+    a.authorFilter === b.authorFilter &&
+    a.limit === b.limit &&
+    areBadgeFiltersEqual(a.badgeFilters, b.badgeFilters)
+  );
+}
+
 export default function DirectionPage() {
   const [search, setSearch] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('plain');
   const [messageType, setMessageType] = useState<MessageTypeFilter>('all');
   const [authorFilter, setAuthorFilter] = useState('');
-  const [badgeFilters, setBadgeFilters] = useState<BadgeFilterState>(initialBadgeState);
+  const [badgeFilters, setBadgeFilters] = useState<BadgeFilterState>({ ...initialBadgeState });
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
+  const [selectedViewer, setSelectedViewer] = useState<string | null>(null);
 
   const [results, setResults] = useState<ChatMessage[]>([]);
   const [total, setTotal] = useState(0);
@@ -61,19 +101,30 @@ export default function DirectionPage() {
   const [overlayStatus, setOverlayStatus] = useState<OverlayActionState>({ status: 'idle', message: '' });
 
   const { highlightRegex, regexError } = useMemo(() => buildHighlightRegex(search, searchMode), [search, searchMode]);
+  const authorHighlightRegex = useMemo(() => {
+    const trimmed = authorFilter.trim();
+    if (!trimmed) return null;
+    try {
+      return new RegExp(escapeRegExp(trimmed), 'gi');
+    } catch {
+      return null;
+    }
+  }, [authorFilter]);
 
-  const [debouncedFilters, setDebouncedFilters] = useState({
-    search,
-    searchMode,
-    messageType,
-    authorFilter,
-    badgeFilters,
-    limit
-  });
+  const [debouncedFilters, setDebouncedFilters] = useState<FilterState>(() =>
+    composeFilters({
+      search,
+      searchMode,
+      messageType,
+      authorFilter,
+      badgeFilters,
+      limit
+    })
+  );
 
   useEffect(() => {
     const handle = setTimeout(() => {
-      setDebouncedFilters({
+      const nextFilters = composeFilters({
         search,
         searchMode,
         messageType,
@@ -81,6 +132,7 @@ export default function DirectionPage() {
         badgeFilters,
         limit
       });
+      setDebouncedFilters((prev) => (areFiltersEqual(prev, nextFilters) ? prev : nextFilters));
     }, SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(handle);
@@ -137,21 +189,45 @@ export default function DirectionPage() {
       const payload: ChatMessagesReply = await response.json();
       const batch = payload.messages.slice().reverse();
 
-      setTotal(payload.total ?? batch.length);
+      const badgeListLower = Object.entries(debouncedFilters.badgeFilters)
+        .filter(([, value]) => value)
+        .map(([key]) => key.toLowerCase());
+
+      const { highlightRegex: filterRegex } = buildHighlightRegex(
+        debouncedFilters.search,
+        debouncedFilters.searchMode
+      );
+
+      const refinedBatch = batch.filter((message) =>
+        messageMatchesFilters(message, {
+          search: debouncedFilters.search,
+          searchMode: debouncedFilters.searchMode,
+          type: debouncedFilters.messageType,
+          author: debouncedFilters.authorFilter,
+          badges: badgeListLower
+        }, filterRegex)
+      );
+
       setNextCursor(payload.nextCursor ?? null);
 
       setResults((prev) => {
+        let nextResults: ChatMessage[];
         if (reset) {
-          return batch;
-        }
-        const existingIds = new Set(prev.map((message) => message.id));
-        const merged = [...prev];
-        for (const message of batch) {
-          if (!existingIds.has(message.id)) {
-            merged.push(message);
+          nextResults = refinedBatch;
+        } else {
+          const existingIds = new Set(prev.map((message) => message.id));
+          const merged = [...prev];
+          for (const message of refinedBatch) {
+            if (!existingIds.has(message.id)) {
+              merged.push(message);
+            }
           }
+          nextResults = merged;
         }
-        return merged;
+
+        const totalMatches = payload.totalMatches ?? payload.total ?? nextResults.length;
+        setTotal(totalMatches);
+        return nextResults;
       });
       setOverlayStatus((current) => (current.status === 'success' ? current : { status: 'idle', message: '' }));
     } catch (err) {
@@ -178,8 +254,18 @@ export default function DirectionPage() {
     setSearchMode('plain');
     setMessageType('all');
     setAuthorFilter('');
-    setBadgeFilters(initialBadgeState);
+    setBadgeFilters({ ...initialBadgeState });
     setLimit(DEFAULT_LIMIT);
+    setSelectedViewer(null);
+    const nextFilters = composeFilters({
+      search: '',
+      searchMode: 'plain',
+      messageType: 'all',
+      authorFilter: '',
+      badgeFilters: { ...initialBadgeState },
+      limit: DEFAULT_LIMIT
+    });
+    setDebouncedFilters((prev) => (areFiltersEqual(prev, nextFilters) ? prev : nextFilters));
   };
 
   const handleLoadMore = () => {
@@ -205,6 +291,26 @@ export default function DirectionPage() {
       const message = err instanceof Error ? err.message : 'Failed to send message to overlay';
       setOverlayStatus({ status: 'error', message });
     }
+  };
+
+  const handleSelectViewer = (viewer: string) => {
+    const trimmed = viewer.trim();
+    if (!trimmed) {
+      setAuthorFilter('');
+      setSelectedViewer(null);
+      return;
+    }
+    setAuthorFilter(trimmed);
+    setSelectedViewer(trimmed);
+    const nextFilters = composeFilters({
+      search,
+      searchMode,
+      messageType,
+      authorFilter: trimmed,
+      badgeFilters,
+      limit
+    });
+    setDebouncedFilters((prev) => (areFiltersEqual(prev, nextFilters) ? prev : nextFilters));
   };
 
   return (
@@ -318,7 +424,12 @@ export default function DirectionPage() {
               type="text"
               placeholder="Filter by author…"
               value={authorFilter}
-              onChange={(event) => setAuthorFilter(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setAuthorFilter(value);
+                const trimmed = value.trim();
+                setSelectedViewer(trimmed ? trimmed : null);
+              }}
             />
           </div>
 
@@ -370,6 +481,32 @@ export default function DirectionPage() {
         </div>
       )}
 
+      {selectedViewer && (
+        <div className="direction__viewer">
+          <span className="direction__viewer-label">Viewer:</span>
+          <span className="direction__viewer-name">{selectedViewer}</span>
+          <button
+            type="button"
+            className="direction__viewer-clear"
+            onClick={() => {
+              setSelectedViewer(null);
+              setAuthorFilter('');
+              const nextFilters = composeFilters({
+                search,
+                searchMode,
+                messageType,
+                authorFilter: '',
+                badgeFilters,
+                limit
+              });
+              setDebouncedFilters((prev) => (areFiltersEqual(prev, nextFilters) ? prev : nextFilters));
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {error && <div className="direction__error">{error}</div>}
 
       <section className="direction__results">
@@ -387,18 +524,34 @@ export default function DirectionPage() {
                 <header className="direction__card-header">
                   <div>
                     <div className="direction__card-author">
-                      <span className="direction__card-authorName">{renderHighlightedText(message.author, highlightRegex)}</span>
+                      <button
+                        type="button"
+                        className="direction__viewer-button direction__card-authorName"
+                        onClick={() => handleSelectViewer(message.author)}
+                        title="Filter messages from this viewer"
+                      >
+                        {renderHighlightedText(message.author, authorHighlightRegex)}
+                      </button>
                       {renderBadges(message)}
                     </div>
                     <span className="direction__card-meta">{formatMessageMeta(message)}</span>
                   </div>
-                  <button
-                    type="button"
-                    className="direction__button direction__button--primary"
-                    onClick={() => handleOverlaySelection(message.id)}
-                  >
-                    Send to overlay
-                  </button>
+                  <div className="direction__card-actions">
+                    <button
+                      type="button"
+                      className="direction__button direction__button--ghost"
+                      onClick={() => handleSelectViewer(message.author)}
+                    >
+                      View this author
+                    </button>
+                    <button
+                      type="button"
+                      className="direction__button direction__button--primary"
+                      onClick={() => handleOverlaySelection(message.id)}
+                    >
+                      Send to overlay
+                    </button>
+                  </div>
                 </header>
 
                 <div className="direction__card-body">
@@ -566,4 +719,98 @@ function renderHighlightedText(text: string, highlightRegex: RegExp | null) {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+type FilterArguments = {
+  search: string;
+  searchMode: SearchMode;
+  type: MessageTypeFilter;
+  author: string;
+  badges: string[];
+};
+
+function messageMatchesFilters(
+  message: ChatMessage,
+  filters: FilterArguments,
+  regex: RegExp | null
+): boolean {
+  if (filters.type !== 'all' && !messageMatchesType(message, filters.type)) {
+    return false;
+  }
+
+  if (filters.author.trim()) {
+    const authorNeedle = filters.author.trim().toLowerCase();
+    if (!message.author?.toLowerCase().includes(authorNeedle)) {
+      return false;
+    }
+  }
+
+  if (filters.badges.length > 0 && !messageMatchesBadges(message, filters.badges)) {
+    return false;
+  }
+
+  const searchValue = filters.search.trim();
+  if (searchValue && regex) {
+    const text = collectMessageText(message);
+    if (!text) {
+      return false;
+    }
+
+    const testRegex = new RegExp(regex.source, regex.flags.replace(/g/g, ''));
+    if (!testRegex.test(text)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function messageMatchesType(message: ChatMessage, type: MessageTypeFilter): boolean {
+  if (type === 'superchat') {
+    return Boolean(message.superChat);
+  }
+  if (type === 'membership') {
+    return Boolean(message.membershipGift || message.membershipGiftPurchase || message.membershipLevel);
+  }
+  return !message.superChat && !message.membershipGift && !message.membershipGiftPurchase;
+}
+
+function messageMatchesBadges(message: ChatMessage, badges: string[]): boolean {
+  if (!badges.length) {
+    return true;
+  }
+
+  const badgeSet = new Set(badges.map((badge) => badge.toLowerCase()));
+  const allLabels: string[] = [];
+
+  if (Array.isArray(message.badges)) {
+    for (const badge of message.badges) {
+      if (badge.label) {
+        allLabels.push(badge.label.toLowerCase());
+      }
+      allLabels.push(badge.type.toLowerCase());
+    }
+  }
+
+  if (message.isModerator) allLabels.push('moderator');
+  if (message.isMember) allLabels.push('member');
+  if (message.isVerified) allLabels.push('verified');
+
+  return allLabels.some((label) => badgeSet.has(label));
+}
+
+function collectMessageText(message: ChatMessage): string {
+  const parts: string[] = [];
+  if (message.text) parts.push(message.text);
+  if (Array.isArray(message.runs)) {
+    for (const run of message.runs) {
+      if (run.text) parts.push(run.text);
+      if (run.emojiAlt) parts.push(run.emojiAlt);
+    }
+  }
+  if (message.membershipLevel) parts.push(message.membershipLevel);
+  if (message.superChat) {
+    parts.push(message.superChat.amount, message.superChat.currency);
+  }
+  return parts.join(' ').trim();
 }

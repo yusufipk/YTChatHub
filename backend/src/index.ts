@@ -25,6 +25,8 @@ type ChatMessagesQuery = {
 type ChatMessagesReply = {
   messages: ChatMessage[];
   total: number;
+  totalMatches: number;
+  pageCount: number;
   nextCursor: string | null;
   hasMore: boolean;
   appliedFilters: {
@@ -219,6 +221,8 @@ export async function startBackend() {
         return {
           messages: [],
           total: store.length,
+          totalMatches: 0,
+          pageCount: 0,
           nextCursor: null,
           hasMore: false,
           appliedFilters: {
@@ -273,6 +277,8 @@ export async function startBackend() {
     return {
       messages: page,
       total,
+      totalMatches: total,
+      pageCount: page.length,
       nextCursor,
       hasMore,
       appliedFilters: {
@@ -438,7 +444,6 @@ function matchesSearch(message: ChatMessage, regex: RegExp, rawSearch: string, m
 
 function collectMessageText(message: ChatMessage): string {
   const parts: string[] = [];
-  if (message.author) parts.push(message.author);
   if (message.text) parts.push(message.text);
   if (Array.isArray(message.runs)) {
     for (const run of message.runs) {
