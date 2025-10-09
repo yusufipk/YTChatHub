@@ -2,6 +2,7 @@
 
 import type { BadgeFilterState, MessageTypeFilter, SearchMode } from '../types';
 import { MAX_PAGE_LIMIT } from '../config';
+import styles from '../DirectionPage.module.css';
 
 type FilterControlsProps = {
   search: string;
@@ -44,41 +45,38 @@ export function FilterControls({
   loading
 }: FilterControlsProps) {
   return (
-    <section className="direction__filters">
-      <header className="direction__filters-header">
+    <section className={styles.filters}>
+      <header className={styles.filtersHeader}>
         <div>
           <h2>Filters</h2>
           <p>Combine filters to narrow down high-signal messages.</p>
         </div>
       </header>
 
-      <div className="direction__filters-grid">
-        <div className="direction__filters-main">
-          <div className="direction__field">
+      <div className={styles.filtersGrid}>
+        <div className={styles.filtersMain}>
+          <div className={styles.field}>
             <label htmlFor="direction-search">Search</label>
             <input
               id="direction-search"
               type="text"
+              className={styles.inputText}
               placeholder={searchMode === 'regex' ? 'Enter regex pattern…' : 'Search messages…'}
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
             />
-            {regexError && searchMode === 'regex' && (
-              <p className="direction__hint direction__hint--error">{regexError}</p>
-            )}
-            {!regexError && search && (
-              <p className="direction__hint">Matched text will be highlighted in results.</p>
-            )}
+            {regexError && searchMode === 'regex' && <p className={`${styles.hint} ${styles.hintError}`}>{regexError}</p>}
+            {!regexError && search && <p className={styles.hint}>Matched text will be highlighted in results.</p>}
           </div>
 
-          <div className="direction__field">
-            <span className="direction__label">Mode</span>
-            <div className="direction__segmented">
+          <div className={styles.field}>
+            <span>Mode</span>
+            <div className={styles.segmented}>
               {(['plain', 'regex'] as SearchMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
-                  className={mode === searchMode ? 'direction__segment direction__segment--active' : 'direction__segment'}
+                  className={mode === searchMode ? `${styles.segment} ${styles.segmentActive}` : styles.segment}
                   onClick={() => onSearchModeChange(mode)}
                 >
                   {mode === 'plain' ? 'Plain' : 'Regex'}
@@ -87,14 +85,14 @@ export function FilterControls({
             </div>
           </div>
 
-          <div className="direction__field">
-            <span className="direction__label">Message Type</span>
-            <div className="direction__segmented">
+          <div className={styles.field}>
+            <span>Message Type</span>
+            <div className={styles.segmented}>
               {typeOptions.map((type) => (
                 <button
                   key={type}
                   type="button"
-                  className={type === messageType ? 'direction__segment direction__segment--active' : 'direction__segment'}
+                  className={type === messageType ? `${styles.segment} ${styles.segmentActive}` : styles.segment}
                   onClick={() => onMessageTypeChange(type)}
                 >
                   {type === 'all' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)}
@@ -103,11 +101,12 @@ export function FilterControls({
             </div>
           </div>
 
-          <div className="direction__field">
+          <div className={styles.field}>
             <label htmlFor="direction-author">Author</label>
             <input
               id="direction-author"
               type="text"
+              className={styles.inputText}
               placeholder="Filter by author name"
               value={authorFilter}
               onChange={(event) => onAuthorFilterChange(event.target.value)}
@@ -115,26 +114,23 @@ export function FilterControls({
           </div>
         </div>
 
-        <div className="direction__filters-secondary">
-          <fieldset className="direction__fieldset direction__fieldset--badges">
+        <div className={styles.filtersSecondary}>
+          <fieldset className={`${styles.fieldset} ${styles.fieldsetBadges}`}>
             <legend>Badges</legend>
             {badgeOrder.map((badge) => (
               <label key={badge}>
-                <input
-                  type="checkbox"
-                  checked={badgeFilters[badge]}
-                  onChange={() => onToggleBadge(badge)}
-                />
+                <input type="checkbox" checked={badgeFilters[badge]} onChange={() => onToggleBadge(badge)} />
                 {badge.charAt(0).toUpperCase() + badge.slice(1)}
               </label>
             ))}
           </fieldset>
 
-          <div className="direction__field direction__field--compact">
+          <div className={`${styles.field} ${styles.fieldCompact}`}>
             <label htmlFor="direction-limit">Page Size</label>
             <input
               id="direction-limit"
               type="number"
+              className={styles.inputNumber}
               min={10}
               max={MAX_PAGE_LIMIT}
               value={limit}
@@ -142,11 +138,11 @@ export function FilterControls({
             />
           </div>
 
-          <div className="direction__actions">
-            <button type="button" className="direction__button direction__button--ghost" onClick={onClearFilters}>
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.button} ${styles.buttonGhost}`} onClick={onClearFilters}>
               Clear filters
             </button>
-            <button type="button" className="direction__button" onClick={onRefresh} disabled={loading}>
+            <button type="button" className={styles.button} onClick={onRefresh} disabled={loading}>
               Refresh
             </button>
           </div>

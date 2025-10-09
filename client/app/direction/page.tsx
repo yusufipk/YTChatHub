@@ -8,6 +8,7 @@ import { useDirectionFilters } from './hooks/useDirectionFilters';
 import { useDirectionMessages } from './hooks/useDirectionMessages';
 import { BACKEND_URL, DEFAULT_LIMIT, MAX_PAGE_LIMIT } from './config';
 import type { OverlayActionState, SearchMode } from './types';
+import styles from './DirectionPage.module.css';
 
 const MIN_PAGE_LIMIT = 10;
 
@@ -107,15 +108,15 @@ export default function DirectionPage() {
   );
 
   return (
-    <div className="direction">
-      <header className="direction__header">
+    <div className={styles.root}>
+      <header className={styles.header}>
         <div>
-          <h1>Direction Studio</h1>
-          <p className="direction__subtitle">High-speed search and filtering for directing on-stream moments.</p>
+          <h1 className={styles.title}>Direction Studio</h1>
+          <p className={styles.subtitle}>High-speed search and filtering for directing on-stream moments.</p>
         </div>
-        <div className="direction__meta">
-          <span className="direction__meta-item">Total matches: {total}</span>
-          {loading && <span className="direction__meta-item direction__meta-item--loading">Loading…</span>}
+        <div className={styles.meta}>
+          <span className={styles.metaItem}>Total matches: {total}</span>
+          {loading && <span className={`${styles.metaItem} ${styles.metaItemLoading}`}>Loading…</span>}
         </div>
       </header>
 
@@ -141,18 +142,22 @@ export default function DirectionPage() {
       <ViewerBanner viewer={selectedViewer} onClear={clearViewer} />
 
       {overlayStatus.status !== 'idle' && (
-        <div className={`direction__overlay-status direction__overlay-status--${overlayStatus.status}`}>
+        <div
+          className={`${styles.overlayStatus} ${
+            overlayStatus.status === 'success' ? styles.overlayStatusSuccess : styles.overlayStatusError
+          }`}
+        >
           {overlayStatus.message}
         </div>
       )}
 
-      {error && <div className="direction__error">{error}</div>}
+      {error && <div className={styles.error}>{error}</div>}
 
-      <section className="direction__results">
+      <section className={styles.results}>
         {results.length === 0 && !loading ? (
-          <div className="direction__empty">
+          <div className={styles.empty}>
             <p>No messages match the current filters.</p>
-            <button type="button" className="direction__button direction__button--ghost" onClick={handleClearFilters}>
+            <button type="button" className={`${styles.button} ${styles.buttonGhost}`} onClick={handleClearFilters}>
               Reset filters
             </button>
           </div>
@@ -167,8 +172,8 @@ export default function DirectionPage() {
         )}
 
         {nextCursor && (
-          <div className="direction__load-more">
-            <button type="button" className="direction__button" disabled={loading} onClick={() => handleLoadMore()}>
+          <div className={styles.loadMore}>
+            <button type="button" className={styles.button} disabled={loading} onClick={handleLoadMore}>
               Load older messages
             </button>
           </div>
