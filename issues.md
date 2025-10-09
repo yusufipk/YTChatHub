@@ -6,7 +6,7 @@ Comprehensive documentation updates for the Direction Studio release, including 
 - ✅ Add language identifiers to fenced code blocks (commit `docs: address documentation lint feedback`)
 - ✅ Replace non-English wording in changelog (commit `docs: address documentation lint feedback`)
 - ✅ Remove redundant client-side filtering in Direction Studio (commit `fix: rely on server filtering`)
-- 🚧 Break Direction Studio page into smaller hooks/components (open)
+- ✅ Break Direction Studio page into smaller hooks/components (commit `refactor: modularize direction studio`)
 - ✅ Update README clone instructions to reference the correct repository (commit `docs: clarify clone instructions`)
 - 🚧 Scope Direction page styles to avoid global collisions (open)
 - 🚧 Extract `/chat/messages` query parsing/filtering helpers (open)
@@ -1023,7 +1023,7 @@ FilterControls: A component for the entire filter section.
 MessageList and MessageCard: To handle the rendering of search results.
 This refactoring will significantly improve separation of concerns, readability, and reusability.
 
-**Status: ⏳ Pending** — planned refactor to split filters/messages into hooks and components.
+**Status: ✅ Completed** — Direction Studio now uses dedicated hooks and components (commit `refactor: modularize direction studio`).
 
 @aliemrevezir	Reply...
 README.md
