@@ -221,47 +221,28 @@ export default function DirectionPage() {
       }
 
       const payload: ChatMessagesReply = await response.json();
-      const batch = payload.messages.slice().reverse();
-
-      const badgeListLower = Object.entries(debouncedFilters.badgeFilters)
-        .filter(([, value]) => value)
-        .map(([key]) => key.toLowerCase());
-
-      const { highlightRegex: filterRegex } = buildHighlightRegex(
-        debouncedFilters.search,
-        debouncedFilters.searchMode
-      );
-
-      const refinedBatch = batch.filter((message) =>
-        messageMatchesFilters(message, {
-          search: debouncedFilters.search,
-          searchMode: debouncedFilters.searchMode,
-          type: debouncedFilters.messageType,
-          author: debouncedFilters.authorFilter,
-          badges: badgeListLower
-        }, filterRegex)
-      );
+      const incomingBatch = payload.messages.slice().reverse();
 
       setNextCursor(payload.nextCursor ?? null);
 
       setResults((prev) => {
-        let nextResults: ChatMessage[];
         if (reset) {
-          nextResults = refinedBatch;
-        } else {
-          const existingIds = new Set(prev.map((message) => message.id));
-          const merged = [...prev];
-          for (const message of refinedBatch) {
-            if (!existingIds.has(message.id)) {
-              merged.push(message);
-            }
-          }
-          nextResults = merged;
+          const totalMatches = payload.totalMatches ?? payload.total ?? incomingBatch.length;
+          setTotal(totalMatches);
+          return incomingBatch;
         }
 
-        const totalMatches = payload.totalMatches ?? payload.total ?? nextResults.length;
+        const existingIds = new Set(prev.map((message) => message.id));
+        const merged = [...prev];
+        for (const message of incomingBatch) {
+          if (!existingIds.has(message.id)) {
+            merged.push(message);
+          }
+        }
+
+        const totalMatches = payload.totalMatches ?? payload.total ?? merged.length;
         setTotal(totalMatches);
-        return nextResults;
+        return merged;
       });
       setOverlayStatus((current) => (current.status === 'success' ? current : { status: 'idle', message: '' }));
     } catch (err) {
@@ -805,98 +786,4 @@ function renderHighlightedText(text: string, highlightRegex: RegExp | null) {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-type FilterArguments = {
-  search: string;
-  searchMode: SearchMode;
-  type: MessageTypeFilter;
-  author: string;
-  badges: string[];
-};
-
-function messageMatchesFilters(
-  message: ChatMessage,
-  filters: FilterArguments,
-  regex: RegExp | null
-): boolean {
-  if (filters.type !== 'all' && !messageMatchesType(message, filters.type)) {
-    return false;
-  }
-
-  if (filters.author.trim()) {
-    const authorNeedle = filters.author.trim().toLowerCase();
-    if (!message.author?.toLowerCase().includes(authorNeedle)) {
-      return false;
-    }
-  }
-
-  if (filters.badges.length > 0 && !messageMatchesBadges(message, filters.badges)) {
-    return false;
-  }
-
-  const searchValue = filters.search.trim();
-  if (searchValue && regex) {
-    const text = collectMessageText(message);
-    if (!text) {
-      return false;
-    }
-
-    const testRegex = new RegExp(regex.source, regex.flags.replace(/g/g, ''));
-    if (!testRegex.test(text)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function messageMatchesType(message: ChatMessage, type: MessageTypeFilter): boolean {
-  if (type === 'superchat') {
-    return Boolean(message.superChat);
-  }
-  if (type === 'membership') {
-    return Boolean(message.membershipGift || message.membershipGiftPurchase || message.membershipLevel);
-  }
-  return !message.superChat && !message.membershipGift && !message.membershipGiftPurchase;
-}
-
-function messageMatchesBadges(message: ChatMessage, badges: string[]): boolean {
-  if (!badges.length) {
-    return true;
-  }
-
-  const badgeSet = new Set(badges.map((badge) => badge.toLowerCase()));
-  const allLabels: string[] = [];
-
-  if (Array.isArray(message.badges)) {
-    for (const badge of message.badges) {
-      if (badge.label) {
-        allLabels.push(badge.label.toLowerCase());
-      }
-      allLabels.push(badge.type.toLowerCase());
-    }
-  }
-
-  if (message.isModerator) allLabels.push('moderator');
-  if (message.isMember) allLabels.push('member');
-  if (message.isVerified) allLabels.push('verified');
-
-  return allLabels.some((label) => badgeSet.has(label));
-}
-
-function collectMessageText(message: ChatMessage): string {
-  const parts: string[] = [];
-  if (message.text) parts.push(message.text);
-  if (Array.isArray(message.runs)) {
-    for (const run of message.runs) {
-      if (run.text) parts.push(run.text);
-      if (run.emojiAlt) parts.push(run.emojiAlt);
-    }
-  }
-  if (message.membershipLevel) parts.push(message.membershipLevel);
-  if (message.superChat) {
-    parts.push(message.superChat.amount, message.superChat.currency);
-  }
-  return parts.join(' ').trim();
 }
