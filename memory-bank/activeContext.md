@@ -5,6 +5,8 @@
 - **Dark minimalist UI redesign**: Clean dashboard with dark theme (#0a0a0a background), tab-based navigation, grid layout, and minimal spacing
 - **Connection flow**: Shows connection prompt on startup, disappears after connecting to YouTube Live stream
 - **Rich message parsing**: Full support for superchats, memberships, badges (moderator, member, verified)
+- **Direction Studio complete**: Advanced search and filtering interface with real-time auto-refresh, regex support (supheli), and author filtering
+- **Enhanced metadata**: Improved YouTube timestamp normalization and author channel URL propagation
 
 ## Recent Decisions
 - Fixed CORS issues by setting headers on raw response object after `reply.hijack()` for SSE endpoint
@@ -20,15 +22,22 @@
 - **Gifted Memberships**: The 'Memberships & Milestones' panel now correctly displays the user who purchased the gift, not the recipient.
 - **Backend Auto-Run Fix**: Updated the direct execution detection so `tsx backend/src/index.ts` actually starts the server when invoked via npm scripts.
 - **Hydration Warning Suppressed**: Added `suppressHydrationWarning` to the root `<body>` so Chrome extensions modifying attributes (e.g., `cz-shortcut-listen`) no longer trigger overlay hydration errors.
+- **Direction Studio Launch**: Created dedicated `/direction` page for advanced search and filtering with regex support, author filtering, and real-time auto-refresh.
+- **Auto-Refresh Implementation**: Added intelligent 5-second auto-refresh with visibility API integration and request abort control to prevent race conditions.
+- **Enhanced Author Metadata**: Improved YouTube timestamp normalization and author channel URL propagation for complete user context.
+- **Search Performance**: Implemented debounced search with request cancellation and out-of-order response prevention for optimal performance.
+- **API Documentation**: Created comprehensive API documentation and refactoring plan for improved maintainability.
 
 ## Immediate Next Steps
-1. Test with live YouTube stream to verify badge parsing and superchat detection
-2. Add search/filter functionality for chat messages
-3. Implement error recovery and reconnection logic for stream interruptions
-4. Add keyboard shortcuts for quick message selection
+1. Test with live YouTube stream to verify enhanced metadata and timestamp normalization
+2. Implement error recovery and reconnection logic for stream interruptions
+3. Add keyboard shortcuts for quick message selection in Direction Studio
+4. Add pagination controls for large message sets in Direction Studio
+5. Implement session persistence for filter settings
 
 ## Open Questions
-- Whether to add message search/filtering UI controls
 - How to handle rate limiting and backoff strategies for long streams
 - Whether to persist Innertube visitor data between runs
+- Should we add export functionality for filtered message results?
+- Whether to implement collaborative filtering for team-based direction workflows
 
