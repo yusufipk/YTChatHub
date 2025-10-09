@@ -40,6 +40,16 @@ type ChatMessagesReply = {
   };
 };
 
+type ParsedChatMessagesQuery = {
+  search: string;
+  mode: SearchMode;
+  type?: MessageTypeFilter;
+  author: string;
+  badges: string[];
+  cursor: string | null;
+  limit: number;
+};
+
 export async function startBackend() {
   const fastify = Fastify({
     logger: {
@@ -181,144 +191,20 @@ export async function startBackend() {
   });
 
   fastify.get<{ Querystring: ChatMessagesQuery; Reply: ChatMessagesReply }>('/chat/messages', async (request, reply) => {
-    const {
-      search: rawSearch,
-      mode: rawMode,
-      type: rawType,
-      author: rawAuthor,
-      badges: rawBadges,
-      cursor,
-      limit: rawLimit
-    } = request.query ?? {};
+    const parsed = parseChatMessagesQuery(request.query ?? {});
+    const { regex: searchRegex, error: regexError } = buildSearchRegex(parsed);
 
-    const search = typeof rawSearch === 'string' ? rawSearch.trim() : '';
-    const mode: SearchMode = rawMode === 'regex' ? 'regex' : 'plain';
-    const type: MessageTypeFilter | undefined = rawType === 'superchat' || rawType === 'membership' || rawType === 'regular'
-      ? rawType
-      : undefined;
-    const author = typeof rawAuthor === 'string' ? rawAuthor.trim() : '';
-    const badges = typeof rawBadges === 'string'
-      ? rawBadges
-          .split(',')
-          .map((badge) => badge.trim().toLowerCase())
-          .filter(Boolean)
-      : [];
-
-    const parsedLimit = typeof rawLimit === 'number' ? rawLimit : Number(rawLimit);
-    const limit = Number.isFinite(parsedLimit)
-      ? Math.min(Math.max(1, Math.floor(parsedLimit)), MAX_MESSAGES)
-      : DEFAULT_PAGE_SIZE;
-
-    const buildInvalidSearchReply = (errorMessage: string): ChatMessagesReply => {
+    if (regexError) {
       reply.status(400);
-      return {
-        messages: [],
-        total: store.length,
-        totalMatches: 0,
-        pageCount: 0,
-        nextCursor: null,
-        hasMore: false,
-        error: errorMessage,
-        appliedFilters: {
-          search,
-          mode,
-          type: type ?? 'all',
-          author: author || null,
-          badges,
-          limit
-        }
-      } satisfies ChatMessagesReply;
-    };
-
-    let searchRegex: RegExp | null = null;
-    if (search) {
-      if (mode === 'regex') {
-        if (search.length > MAX_REGEX_PATTERN_LENGTH) {
-          return buildInvalidSearchReply(
-            `Regex pattern must be ${MAX_REGEX_PATTERN_LENGTH} characters or less`
-          );
-        }
-
-        if (!safeRegex(search)) {
-          return buildInvalidSearchReply('Unsafe regex pattern');
-        }
-
-        try {
-          searchRegex = new RegExp(search, 'i');
-        } catch {
-          return buildInvalidSearchReply('Invalid regex pattern');
-        }
-      } else {
-        try {
-          searchRegex = new RegExp(escapeRegExp(search), 'i');
-        } catch {
-          return buildInvalidSearchReply('Invalid search pattern');
-        }
-      }
+      return buildInvalidSearchReply(parsed, store.length, regexError);
     }
 
-    let filtered = store.slice();
-
-    if (type) {
-      filtered = filtered.filter((message) => matchesType(message, type));
-    }
-
-    if (author) {
-      const lowered = author.toLowerCase();
-      filtered = filtered.filter((message) => (message.author ?? '').toLowerCase().includes(lowered));
-    }
-
-    if (badges.length > 0) {
-      filtered = filtered.filter((message) => matchesBadges(message, badges));
-    }
-
-    if (searchRegex) {
-      filtered = filtered.filter((message) => matchesSearch(message, searchRegex!, search, mode));
-    }
-
-    const total = filtered.length;
-
-    // Pagination
-    const effectiveCursor = cursor ? cursor.trim() : '';
-    let endIndex = filtered.length;
-    if (effectiveCursor) {
-      const cursorIndex = filtered.findIndex((message) => message.id === effectiveCursor);
-      if (cursorIndex >= 0) {
-        endIndex = cursorIndex;
-      }
-    }
-
-    const startIndex = Math.max(0, endIndex - limit);
-    const page = filtered.slice(startIndex, endIndex);
-    const normalizedPage = page.map((message) => {
-      if (message.authorChannelUrl || !message.authorChannelId) {
-        return message;
-      }
-      return {
-        ...message,
-        authorChannelUrl: `https://www.youtube.com/channel/${message.authorChannelId}`
-      };
-    });
-    const nextCursor = startIndex > 0 ? filtered[startIndex - 1]?.id ?? null : null;
-    const hasMore = nextCursor !== null;
+    const filtered = applyFilters(store, parsed, searchRegex);
+    const { page, nextCursor, hasMore } = paginateMessages(filtered, parsed);
+    const normalizedPage = withAuthorChannelUrl(page);
 
     reply.status(200);
-    return {
-      messages: normalizedPage,
-      total,
-      totalMatches: total,
-      pageCount: page.length,
-      nextCursor,
-      hasMore,
-      appliedFilters: {
-        search: search || null,
-        mode,
-        type: type ?? 'all',
-        author: author || null,
-        badges,
-        limit
-      }
-    } satisfies ChatMessagesReply;
+    return buildSuccessReply(normalizedPage, filtered.length, parsed, nextCursor, hasMore);
   });
 
   fastify.post<{ Body: { id?: string } }>('/overlay/selection', async (request, reply) => {
@@ -432,6 +318,165 @@ function seedMockMessages(
     }
     counter += 1;
   }, 2000);
+}
+
+function parseChatMessagesQuery(raw: ChatMessagesQuery | undefined): ParsedChatMessagesQuery {
+  const search = typeof raw?.search === 'string' ? raw.search.trim() : '';
+  const mode: SearchMode = raw?.mode === 'regex' ? 'regex' : 'plain';
+  const type: MessageTypeFilter | undefined =
+    raw?.type === 'superchat' || raw?.type === 'membership' || raw?.type === 'regular' ? raw.type : undefined;
+  const author = typeof raw?.author === 'string' ? raw.author.trim() : '';
+  const badges = typeof raw?.badges === 'string'
+    ? raw.badges
+        .split(',')
+        .map((badge) => badge.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+
+  const parsedLimit = typeof raw?.limit === 'number' ? raw.limit : Number(raw?.limit);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(1, Math.floor(parsedLimit)), MAX_MESSAGES)
+    : DEFAULT_PAGE_SIZE;
+
+  const parsedCursor = typeof raw?.cursor === 'string' ? raw.cursor.trim() : '';
+
+  return {
+    search,
+    mode,
+    type,
+    author,
+    badges,
+    cursor: parsedCursor || null,
+    limit
+  };
+}
+
+function buildSearchRegex(parsed: ParsedChatMessagesQuery): { regex: RegExp | null; error?: string } {
+  if (!parsed.search) {
+    return { regex: null };
+  }
+
+  if (parsed.mode === 'regex') {
+    if (parsed.search.length > MAX_REGEX_PATTERN_LENGTH) {
+      return { regex: null, error: `Regex pattern must be ${MAX_REGEX_PATTERN_LENGTH} characters or less` };
+    }
+
+    if (!safeRegex(parsed.search)) {
+      return { regex: null, error: 'Unsafe regex pattern' };
+    }
+
+    try {
+      return { regex: new RegExp(parsed.search, 'i') };
+    } catch {
+      return { regex: null, error: 'Invalid regex pattern' };
+    }
+  }
+
+  try {
+    return { regex: new RegExp(escapeRegExp(parsed.search), 'i') };
+  } catch {
+    return { regex: null, error: 'Invalid search pattern' };
+  }
+}
+
+function applyFilters(messages: ChatMessage[], parsed: ParsedChatMessagesQuery, searchRegex: RegExp | null): ChatMessage[] {
+  let filtered = messages.slice();
+
+  if (parsed.type) {
+    filtered = filtered.filter((message) => matchesType(message, parsed.type!));
+  }
+
+  if (parsed.author) {
+    const lowered = parsed.author.toLowerCase();
+    filtered = filtered.filter((message) => (message.author ?? '').toLowerCase().includes(lowered));
+  }
+
+  if (parsed.badges.length > 0) {
+    filtered = filtered.filter((message) => matchesBadges(message, parsed.badges));
+  }
+
+  if (searchRegex) {
+    filtered = filtered.filter((message) => matchesSearch(message, searchRegex, parsed.search, parsed.mode));
+  }
+
+  return filtered;
+}
+
+function paginateMessages(messages: ChatMessage[], parsed: ParsedChatMessagesQuery) {
+  let endIndex = messages.length;
+  if (parsed.cursor) {
+    const cursorIndex = messages.findIndex((message) => message.id === parsed.cursor);
+    if (cursorIndex >= 0) {
+      endIndex = cursorIndex;
+    }
+  }
+
+  const startIndex = Math.max(0, endIndex - parsed.limit);
+  const page = messages.slice(startIndex, endIndex);
+  const nextCursor = startIndex > 0 ? messages[startIndex - 1]?.id ?? null : null;
+  return {
+    page,
+    nextCursor,
+    hasMore: nextCursor !== null
+  };
+}
+
+function withAuthorChannelUrl(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((message) => {
+    if (message.authorChannelUrl || !message.authorChannelId) {
+      return message;
+    }
+    return {
+      ...message,
+      authorChannelUrl: `https://www.youtube.com/channel/${message.authorChannelId}`
+    };
+  });
+}
+
+function buildInvalidSearchReply(
+  parsed: ParsedChatMessagesQuery,
+  totalMessages: number,
+  errorMessage: string
+): ChatMessagesReply {
+  return {
+    messages: [],
+    total: totalMessages,
+    totalMatches: 0,
+    pageCount: 0,
+    nextCursor: null,
+    hasMore: false,
+    error: errorMessage,
+    appliedFilters: buildAppliedFilters(parsed)
+  } satisfies ChatMessagesReply;
+}
+
+function buildSuccessReply(
+  page: ChatMessage[],
+  totalMatches: number,
+  parsed: ParsedChatMessagesQuery,
+  nextCursor: string | null,
+  hasMore: boolean
+): ChatMessagesReply {
+  return {
+    messages: page,
+    total: totalMatches,
+    totalMatches,
+    pageCount: page.length,
+    nextCursor,
+    hasMore,
+    appliedFilters: buildAppliedFilters(parsed)
+  } satisfies ChatMessagesReply;
+}
+
+function buildAppliedFilters(parsed: ParsedChatMessagesQuery): ChatMessagesReply['appliedFilters'] {
+  return {
+    search: parsed.search || null,
+    mode: parsed.mode,
+    type: parsed.type ?? 'all',
+    author: parsed.author || null,
+    badges: parsed.badges,
+    limit: parsed.limit
+  };
 }
 
 function matchesType(message: ChatMessage, type: MessageTypeFilter): boolean {

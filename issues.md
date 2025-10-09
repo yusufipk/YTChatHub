@@ -9,7 +9,7 @@ Comprehensive documentation updates for the Direction Studio release, including 
 - ✅ Break Direction Studio page into smaller hooks/components (commit `refactor: modularize direction studio`)
 - ✅ Update README clone instructions to reference the correct repository (commit `docs: clarify clone instructions`)
 - ✅ Scope Direction page styles to avoid global collisions (commit `style: scope direction studio css`)
-- 🚧 Extract `/chat/messages` query parsing/filtering helpers (open)
+- ✅ Extract `/chat/messages` query parsing/filtering helpers (commit `refactor: extract chat messages helpers`)
 
 Documentation Updates
 📚 Memory Bank Updates
@@ -1171,7 +1171,7 @@ A function to parse and validate the query parameters.
 A separate function that applies all filters to the message store.
 This would make the main handler cleaner and more focused on the request/response lifecycle.
 
-**Status: ⏳ Pending** — consider extracting query parsing and filtering helpers for `/chat/messages`.
+**Status: ✅ Completed** — `/chat/messages` now uses dedicated helpers for parsing, filtering, and pagination (commit `refactor: extract chat messages helpers`).
 
 @aliemrevezir	Reply...
 client/app/direction/page.tsx
