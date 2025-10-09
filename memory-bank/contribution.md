@@ -145,3 +145,52 @@ To work with the remote repositories, use the following commands:
    git merge upstream/main
    git push origin main
    ```
+
+## Search and Filtering Feature Implementation 
+
+We're currently working on implementing search and filtering functionality for chat messages in the YTChatHub dashboard. This feature will allow users to find specific messages quickly by searching text content and filtering by message types.
+
+### Current Progress
+
+1. Created a new branch `ui/message-search-filtering` for this feature
+2. Developed a comprehensive implementation plan (see `memory-bank/search-filtering-plan.md` for details)
+
+### Implementation Plan Overview
+
+#### Backend Enhancements
+- Extend the `/chat/messages` endpoint to accept query parameters for filtering
+- Implement filtering logic for:
+  - Text search across message content
+  - Message type filtering (regular, superchat, membership)
+  - Author filtering
+  - Badge filtering (moderator, member, verified)
+
+#### Frontend Implementation
+- Add search input field for text search
+- Add filter controls for message types
+- Add author filter input
+- Add badge filter checkboxes
+- Implement proper state management for all filters
+
+### Technical Considerations
+
+1. **Performance**: Implement debouncing on search input (300-500ms delay)
+2. **User Experience**: Preserve auto-scroll behavior when filtering narrows results
+3. **UI/UX Design**: Ensure filter controls are responsive and don't clutter the interface
+
+### Open Questions
+
+1. Should we implement client-side or server-side filtering for better performance?
+2. Should search include author names only or also message content?
+3. Should filter settings be persisted in localStorage for the session?
+4. How should we handle the case when filters return no results?
+5. Should we support regex search or just simple text matching?
+
+### Implementation Phases
+
+1. **Phase 1**: Basic search and filter (text search + message type filtering)
+2. **Phase 2**: Advanced filtering (author + badge filtering)
+3. **Phase 3**: Performance and UX improvements (debouncing, loading states, etc.)
+
+### References
+1. [Search and Filtering Plan](contribution-contents/searchFilteringPlan.md)
