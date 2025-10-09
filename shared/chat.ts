@@ -22,6 +22,7 @@ export type ChatMessage = {
   author: string;
   authorPhoto?: string;
   authorChannelId?: string;
+  authorChannelUrl?: string;
   text: string;
   runs?: MessageRun[]; // structured runs for emojis
   publishedAt: string;

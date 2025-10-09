@@ -157,8 +157,16 @@ function resolveTimestamp(timestamp: number | string | undefined): string {
 
   const numeric = typeof timestamp === 'string' ? Number(timestamp) : timestamp;
   if (Number.isFinite(numeric)) {
-    const millis = numeric > 1e12 ? numeric / 1000 : numeric;
-    return new Date(millis).toISOString();
+    if (numeric > 1e15) {
+      return new Date(Math.floor(numeric / 1000)).toISOString();
+    }
+    if (numeric > 1e12) {
+      return new Date(Math.floor(numeric)).toISOString();
+    }
+    if (numeric > 1e9) {
+      return new Date(Math.floor(numeric * 1000)).toISOString();
+    }
+    return new Date(Math.floor(numeric)).toISOString();
   }
 
   return new Date().toISOString();
@@ -389,11 +397,14 @@ function normalizeAction(action: any): ChatMessage | null {
       ? (item.header_subtext?.text || item.header_primary_text?.text || '')
       : '';
 
+    const channelUrl = authorChannelId ? `https://www.youtube.com/channel/${authorChannelId}` : undefined;
+
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
       author: authorName,
       authorPhoto,
       authorChannelId: authorChannelId ? String(authorChannelId) : undefined,
+      authorChannelUrl: channelUrl,
       text: resolvedText || membershipFallbackText,
       runs: (() => { const r = resolveMessageRuns(item); return r.length ? r : undefined; })(),
       publishedAt: resolveTimestamp(item.timestamp ?? item.timestamp_usec),

@@ -524,6 +524,13 @@ export default function DirectionPage() {
                 <header className="direction__card-header">
                   <div>
                     <div className="direction__card-author">
+                      {message.authorPhoto && (
+                        <img
+                          src={message.authorPhoto}
+                          alt={message.author}
+                          className="direction__author-avatar"
+                        />
+                      )}
                       <button
                         type="button"
                         className="direction__viewer-button direction__card-authorName"
@@ -542,8 +549,18 @@ export default function DirectionPage() {
                       className="direction__button direction__button--ghost"
                       onClick={() => handleSelectViewer(message.author)}
                     >
-                      View this author
+                      Filter author
                     </button>
+                    {message.authorChannelUrl && (
+                      <a
+                        href={message.authorChannelUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="direction__button direction__button--primary direction__button--link"
+                      >
+                        View this author
+                      </a>
+                    )}
                     <button
                       type="button"
                       className="direction__button direction__button--primary"

@@ -1386,6 +1386,14 @@ main {
   color: #60a5fa;
 }
 
+.direction__author-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
 .direction__error {
   padding: 0.75rem 1rem;
   border-radius: 10px;
@@ -1501,6 +1509,13 @@ main {
   display: flex;
   gap: 0.6rem;
   align-items: center;
+}
+
+.direction__button--link {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .direction__superchat {

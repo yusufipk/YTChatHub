@@ -270,12 +270,21 @@ export async function startBackend() {
 
     const startIndex = Math.max(0, endIndex - limit);
     const page = filtered.slice(startIndex, endIndex);
+    const normalizedPage = page.map((message) => {
+      if (message.authorChannelUrl || !message.authorChannelId) {
+        return message;
+      }
+      return {
+        ...message,
+        authorChannelUrl: `https://www.youtube.com/channel/${message.authorChannelId}`
+      };
+    });
     const nextCursor = startIndex > 0 ? filtered[startIndex - 1]?.id ?? null : null;
     const hasMore = nextCursor !== null;
 
     reply.status(200);
     return {
-      messages: page,
+      messages: normalizedPage,
       total,
       totalMatches: total,
       pageCount: page.length,
@@ -388,7 +397,10 @@ function seedMockMessages(
     const message: ChatMessage = {
       id: `mock-${Date.now()}`,
       author: authors[counter % authors.length],
+      authorChannelId: `mock-channel-${counter % authors.length}`,
+      authorChannelUrl: `https://www.youtube.com/channel/mock-channel-${counter % authors.length}`,
       text: `Mock message #${counter}`,
+      authorPhoto: `https://api.dicebear.com/7.x/thumbs/svg?seed=${authors[counter % authors.length]}`,
       publishedAt: new Date().toISOString()
     };
     store.push(message);
