@@ -95,20 +95,6 @@ export function useDirectionFilters(initialLimit = DEFAULT_LIMIT): UseDirectionF
     return () => clearTimeout(handle);
   }, [baseFilters]);
 
-  const toggleBadge = useCallback(
-    (badge: keyof BadgeFilterState) => {
-      setBadgeFilters((prev) => {
-        const next = {
-          ...prev,
-          [badge]: !prev[badge]
-        };
-        syncDebouncedFilters({ badgeFilters: next });
-        return next;
-      });
-    },
-    [syncDebouncedFilters]
-  );
-
   const syncDebouncedFilters = useCallback(
     (overrides?: Partial<Omit<FilterState, 'badgeFilters'>> & { badgeFilters?: BadgeFilterState }) => {
       const next = composeFiltersFromState({
@@ -122,6 +108,20 @@ export function useDirectionFilters(initialLimit = DEFAULT_LIMIT): UseDirectionF
       setDebouncedFilters((prev) => (areFiltersEqual(prev, next) ? prev : next));
     },
     [authorFilter, badgeFilters, limit, messageType, search, searchMode]
+  );
+
+  const toggleBadge = useCallback(
+    (badge: keyof BadgeFilterState) => {
+      setBadgeFilters((prev) => {
+        const next = {
+          ...prev,
+          [badge]: !prev[badge]
+        };
+        syncDebouncedFilters({ badgeFilters: next });
+        return next;
+      });
+    },
+    [syncDebouncedFilters]
   );
 
   const clearFilters = useCallback(() => {
