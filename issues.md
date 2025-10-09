@@ -7,7 +7,7 @@ Comprehensive documentation updates for the Direction Studio release, including 
 - ✅ Replace non-English wording in changelog (commit `docs: address documentation lint feedback`)
 - ✅ Remove redundant client-side filtering in Direction Studio (commit `fix: rely on server filtering`)
 - 🚧 Break Direction Studio page into smaller hooks/components (open)
-- 🚧 Update README clone instructions to reference the correct repository (open)
+- ✅ Update README clone instructions to reference the correct repository (commit `docs: clarify clone instructions`)
 - 🚧 Scope Direction page styles to avoid global collisions (open)
 - 🚧 Extract `/chat/messages` query parsing/filtering helpers (open)
 
@@ -1036,7 +1036,7 @@ medium
 
 The git clone command in the installation instructions points to https://github.com/yusufipk/youtube-client.git. This can be confusing for contributors working on this fork, as the context of this PR and other documentation suggests a different repository. To avoid confusion, please update the URL to reflect the correct repository for this project or use a placeholder.
 
-**Status: ⏳ Pending** — update README clone instructions to use this fork/placeholder URL.
+**Status: ✅ Completed** — updated README installer section (commit `docs: clarify clone instructions`).
 
 @aliemrevezir	Reply...
 backend/src/index.ts
