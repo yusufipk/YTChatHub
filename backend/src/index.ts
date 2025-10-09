@@ -1,12 +1,54 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import EventEmitter from 'eventemitter3';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import safeRegex from 'safe-regex2';
 import type { ChatMessage } from '@shared/chat';
 import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei';
 
 const MAX_MESSAGES = 500;
+const DEFAULT_PAGE_SIZE = 100;
+const MAX_REGEX_PATTERN_LENGTH = 256;
+
+type MessageTypeFilter = 'regular' | 'superchat' | 'membership';
+type SearchMode = 'plain' | 'regex';
+
+type ChatMessagesQuery = {
+  search?: string;
+  mode?: SearchMode;
+  type?: MessageTypeFilter;
+  author?: string;
+  badges?: string;
+  cursor?: string;
+  limit?: number | string;
+};
+
+type ChatMessagesReply = {
+  messages: ChatMessage[];
+  total: number;
+  totalMatches: number;
+  pageCount: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+  error?: string;
+  appliedFilters: {
+    search: string | null;
+    mode: SearchMode;
+    type: MessageTypeFilter | 'all';
+    author: string | null;
+    badges: string[];
+    limit: number;
+  };
+};
+
+type ParsedChatMessagesQuery = {
+  search: string;
+  mode: SearchMode;
+  type?: MessageTypeFilter;
+  author: string;
+  badges: string[];
+  cursor: string | null;
+  limit: number;
+};
 
 export async function startBackend() {
   const fastify = Fastify({
@@ -148,9 +190,22 @@ export async function startBackend() {
     return { ok: true };
   });
 
-  fastify.get('/chat/messages', async () => ({
-    messages: store
-  }));
+  fastify.get<{ Querystring: ChatMessagesQuery; Reply: ChatMessagesReply }>('/chat/messages', async (request, reply) => {
+    const parsed = parseChatMessagesQuery(request.query ?? {});
+    const { regex: searchRegex, error: regexError } = buildSearchRegex(parsed);
+
+    if (regexError) {
+      reply.status(400);
+      return buildInvalidSearchReply(parsed, store.length, regexError);
+    }
+
+    const filtered = applyFilters(store, parsed, searchRegex);
+    const { page, nextCursor, hasMore } = paginateMessages(filtered, parsed);
+    const normalizedPage = withAuthorChannelUrl(page);
+
+    reply.status(200);
+    return buildSuccessReply(normalizedPage, filtered.length, parsed, nextCursor, hasMore);
+  });
 
   fastify.post<{ Body: { id?: string } }>('/overlay/selection', async (request, reply) => {
     const { id } = request.body ?? {};
@@ -248,7 +303,10 @@ function seedMockMessages(
     const message: ChatMessage = {
       id: `mock-${Date.now()}`,
       author: authors[counter % authors.length],
+      authorChannelId: `mock-channel-${counter % authors.length}`,
+      authorChannelUrl: `https://www.youtube.com/channel/mock-channel-${counter % authors.length}`,
       text: `Mock message #${counter}`,
+      authorPhoto: `https://api.dicebear.com/7.x/thumbs/svg?seed=${authors[counter % authors.length]}`,
       publishedAt: new Date().toISOString()
     };
     store.push(message);
@@ -262,22 +320,223 @@ function seedMockMessages(
   }, 2000);
 }
 
-const isDirectExecution = (() => {
-  const entry = process.argv[1];
-  if (!entry) {
-    return false;
-  }
-  try {
-    const href = pathToFileURL(resolve(entry)).href;
-    return import.meta.url === href;
-  } catch {
-    return false;
-  }
-})();
+function parseChatMessagesQuery(raw: ChatMessagesQuery | undefined): ParsedChatMessagesQuery {
+  const search = typeof raw?.search === 'string' ? raw.search.trim() : '';
+  const mode: SearchMode = raw?.mode === 'regex' ? 'regex' : 'plain';
+  const type: MessageTypeFilter | undefined =
+    raw?.type === 'superchat' || raw?.type === 'membership' || raw?.type === 'regular' ? raw.type : undefined;
+  const author = typeof raw?.author === 'string' ? raw.author.trim() : '';
+  const badges = typeof raw?.badges === 'string'
+    ? raw.badges
+        .split(',')
+        .map((badge) => badge.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
 
-if (isDirectExecution) {
-  startBackend().catch((error) => {
-    console.error('Failed to start backend', error);
-    process.exit(1);
+  const parsedLimit = typeof raw?.limit === 'number' ? raw.limit : Number(raw?.limit);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(1, Math.floor(parsedLimit)), MAX_MESSAGES)
+    : DEFAULT_PAGE_SIZE;
+
+  const parsedCursor = typeof raw?.cursor === 'string' ? raw.cursor.trim() : '';
+
+  return {
+    search,
+    mode,
+    type,
+    author,
+    badges,
+    cursor: parsedCursor || null,
+    limit
+  };
+}
+
+function buildSearchRegex(parsed: ParsedChatMessagesQuery): { regex: RegExp | null; error?: string } {
+  if (!parsed.search) {
+    return { regex: null };
+  }
+
+  if (parsed.mode === 'regex') {
+    if (parsed.search.length > MAX_REGEX_PATTERN_LENGTH) {
+      return { regex: null, error: `Regex pattern must be ${MAX_REGEX_PATTERN_LENGTH} characters or less` };
+    }
+
+    if (!safeRegex(parsed.search)) {
+      return { regex: null, error: 'Unsafe regex pattern' };
+    }
+
+    try {
+      return { regex: new RegExp(parsed.search, 'i') };
+    } catch {
+      return { regex: null, error: 'Invalid regex pattern' };
+    }
+  }
+
+  try {
+    return { regex: new RegExp(escapeRegExp(parsed.search), 'i') };
+  } catch {
+    return { regex: null, error: 'Invalid search pattern' };
+  }
+}
+
+function applyFilters(messages: ChatMessage[], parsed: ParsedChatMessagesQuery, searchRegex: RegExp | null): ChatMessage[] {
+  let filtered = messages.slice();
+
+  if (parsed.type) {
+    filtered = filtered.filter((message) => matchesType(message, parsed.type!));
+  }
+
+  if (parsed.author) {
+    const lowered = parsed.author.toLowerCase();
+    filtered = filtered.filter((message) => (message.author ?? '').toLowerCase().includes(lowered));
+  }
+
+  if (parsed.badges.length > 0) {
+    filtered = filtered.filter((message) => matchesBadges(message, parsed.badges));
+  }
+
+  if (searchRegex) {
+    filtered = filtered.filter((message) => matchesSearch(message, searchRegex, parsed.search, parsed.mode));
+  }
+
+  return filtered;
+}
+
+function paginateMessages(messages: ChatMessage[], parsed: ParsedChatMessagesQuery) {
+  let endIndex = messages.length;
+  if (parsed.cursor) {
+    const cursorIndex = messages.findIndex((message) => message.id === parsed.cursor);
+    if (cursorIndex >= 0) {
+      endIndex = cursorIndex;
+    }
+  }
+
+  const startIndex = Math.max(0, endIndex - parsed.limit);
+  const page = messages.slice(startIndex, endIndex);
+  const nextCursor = startIndex > 0 ? messages[startIndex - 1]?.id ?? null : null;
+  return {
+    page,
+    nextCursor,
+    hasMore: nextCursor !== null
+  };
+}
+
+function withAuthorChannelUrl(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((message) => {
+    if (message.authorChannelUrl || !message.authorChannelId) {
+      return message;
+    }
+    return {
+      ...message,
+      authorChannelUrl: `https://www.youtube.com/channel/${message.authorChannelId}`
+    };
   });
 }
+
+function buildInvalidSearchReply(
+  parsed: ParsedChatMessagesQuery,
+  totalMessages: number,
+  errorMessage: string
+): ChatMessagesReply {
+  return {
+    messages: [],
+    total: totalMessages,
+    totalMatches: 0,
+    pageCount: 0,
+    nextCursor: null,
+    hasMore: false,
+    error: errorMessage,
+    appliedFilters: buildAppliedFilters(parsed)
+  } satisfies ChatMessagesReply;
+}
+
+function buildSuccessReply(
+  page: ChatMessage[],
+  totalMatches: number,
+  parsed: ParsedChatMessagesQuery,
+  nextCursor: string | null,
+  hasMore: boolean
+): ChatMessagesReply {
+  return {
+    messages: page,
+    total: totalMatches,
+    totalMatches,
+    pageCount: page.length,
+    nextCursor,
+    hasMore,
+    appliedFilters: buildAppliedFilters(parsed)
+  } satisfies ChatMessagesReply;
+}
+
+function buildAppliedFilters(parsed: ParsedChatMessagesQuery): ChatMessagesReply['appliedFilters'] {
+  return {
+    search: parsed.search || null,
+    mode: parsed.mode,
+    type: parsed.type ?? 'all',
+    author: parsed.author || null,
+    badges: parsed.badges,
+    limit: parsed.limit
+  };
+}
+
+function matchesType(message: ChatMessage, type: MessageTypeFilter): boolean {
+  if (type === 'superchat') {
+    return Boolean(message.superChat);
+  }
+  if (type === 'membership') {
+    return Boolean(message.membershipGift || message.membershipGiftPurchase || message.membershipLevel);
+  }
+  return !message.superChat && !message.membershipGift && !message.membershipGiftPurchase;
+}
+
+function matchesBadges(message: ChatMessage, badges: string[]): boolean {
+  if (!badges.length) {
+    return true;
+  }
+
+  const badgeSet = new Set(badges.map((badge) => badge.toLowerCase()));
+  const candidateLabels = [
+    ...(message.badges ?? []).map((badge) => badge.label?.toLowerCase() ?? ''),
+    ...(message.badges ?? []).map((badge) => badge.type.toLowerCase())
+  ];
+
+  if (message.isModerator) candidateLabels.push('moderator');
+  if (message.isMember) candidateLabels.push('member');
+  if (message.isVerified) candidateLabels.push('verified');
+
+  return candidateLabels.some((label) => badgeSet.has(label));
+}
+
+function matchesSearch(message: ChatMessage, regex: RegExp, rawSearch: string, mode: SearchMode): boolean {
+  const content = collectMessageText(message);
+  if (!content) return false;
+
+  if (mode === 'regex') {
+    const pattern = new RegExp(regex.source, regex.flags.replace(/g/g, ''));
+    return pattern.test(content);
+  }
+
+  return regex.test(content);
+}
+
+function collectMessageText(message: ChatMessage): string {
+  const parts: string[] = [];
+  if (message.text) parts.push(message.text);
+  if (Array.isArray(message.runs)) {
+    for (const run of message.runs) {
+      if (run.text) parts.push(run.text);
+      if (run.emojiAlt) parts.push(run.emojiAlt);
+    }
+  }
+  if (message.membershipLevel) parts.push(message.membershipLevel);
+  if (message.superChat) {
+    parts.push(message.superChat.amount, message.superChat.currency);
+  }
+  return parts.join(' ').trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export type { ChatMessage } from '@shared/chat';

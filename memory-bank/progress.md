@@ -19,7 +19,7 @@
 - [x] Centered layout with gradient backgrounds and glass-morphism effects.
 - [x] Message count display and connection status.
 - [x] Conditional auto-scrolling for chat panels.
-- [ ] Add filters/search functionality.
+- [x] Add filters/search functionality.
 - [ ] Handle error states (rate limits, disconnects) gracefully in UI.
 
 ## Phase 3 – OBS Overlay Experience
@@ -30,9 +30,30 @@
 - [ ] Add entrance/exit animations for message transitions.
 - [ ] Add theme controls and customization options.
 
+## Phase 3 – Direction Studio (Advanced Search & Filtering)
+- [x] Create dedicated `/direction` page for advanced message search and filtering
+- [x] Implement backend query parameters for search, type, author, and badge filtering
+- [x] Add regex search support with error handling and validation
+- [x] Implement debounced search with 300ms delay for performance
+- [x] Add author filtering with clickable author names and viewer pills
+- [x] Implement badge filtering (moderator, member, verified)
+- [x] Add message type filtering (regular, superchat, membership)
+- [x] Implement real-time auto-refresh with 5-second intervals
+- [x] Add request abort control and race condition prevention
+- [x] Style viewer pills, action buttons, and enhanced card layouts
+- [x] Add overlay integration with "Send to overlay" functionality
+- [x] Implement author channel links and avatar displays
+- [ ] Add pagination controls for large result sets
+- [ ] Add session persistence for filter settings
+- [ ] Implement export functionality for filtered results
+
 ## Phase 4 – Reliability & Polish
 - [ ] Expand logging/metrics for long-stream observability.
 - [ ] Write tests (unit/integration) and contributor documentation.
+
+## Open Source & Contributions
+- [x] Create API documentation and refactoring plan
+- [x] Implement comprehensive API documentation
 
 ## Current Status
 - **✅ YouTube Integration Live**: Backend connects to real YouTube Live chat and parses all message types
@@ -41,4 +62,8 @@
 - **✅ Rich Parsing**: Moderators, members, verified users, superchats, and membership gifts all detected and displayed. Currency parsing is now more robust.
 - **✅ UI Polished**: The dashboard and overlay layouts have been refined for better spacing and alignment. The overlay now matches the dashboard's aesthetic.
 - **✅ Auto-Scroll Implemented**: Chat panels now auto-scroll intelligently.
-- **Next**: Add search/filter, error recovery, and polish UX details
+- **✅ Direction Studio Complete**: Advanced search and filtering interface with regex support(!), author filtering, and real-time auto-refresh.
+- **✅ Enhanced Metadata**: Improved YouTube timestamp normalization and author channel URL propagation.
+- **✅ Search Performance**: Debounced search with request cancellation and race condition prevention.
+- **✅ API Documentation**: Comprehensive API documentation and refactoring plans created.
+- **Next**: Error recovery, keyboard shortcuts, session persistence for filters, and open-source readiness
