@@ -1,5 +1,6 @@
 import './globals.css';
 import type { ReactNode } from 'react';
+import { TimezoneProvider } from '../lib/TimezoneContext';
 
 export const metadata = {
   title: 'YouTube Chat Client',
@@ -9,7 +10,11 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <TimezoneProvider>
+          {children}
+        </TimezoneProvider>
+      </body>
     </html>
   );
 }

@@ -1241,6 +1241,14 @@ main {
   word-break: break-word;
 }
 
+.overlay__timestamp {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .overlay__placeholder {
   padding: 1rem 1.4rem;
   border-radius: 12px;

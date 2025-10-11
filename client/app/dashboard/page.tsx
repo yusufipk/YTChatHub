@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import type { ChatMessage } from '@shared/chat';
+import { useTimezone } from '../../lib/TimezoneContext';
+import { formatTimestamp } from '../../lib/timezone';
 
 // URL regex for detecting links (http/https)
 const URL_REGEX = /(https?:\/\/[^\s]+)/gi;
@@ -582,6 +584,8 @@ function ChatListPanel({ messages, renderItem, emptyState }: ChatListPanelProps)
 }
 
 function ChatItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps) {
+  const { timezone } = useTimezone();
+  
   return (
     <button
       className={isSelected ? 'chatItem chatItem--active' : 'chatItem'}
@@ -614,7 +618,7 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps)
               </span>
             )}
           </div>
-          <time className="chatItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
+          <time className="chatItem__time">{formatTimestamp(message.publishedAt, timezone)}</time>
         </div>
       </div>
       {message.runs?.length ? (
@@ -637,6 +641,8 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps)
 }
 
 function MemberItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps) {
+  const { timezone } = useTimezone();
+  
   return (
     <button
       className={isSelected ? 'memberItem memberItem--active' : 'memberItem'}
@@ -653,7 +659,7 @@ function MemberItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProp
               ? `Sent ${message.giftCount} gift membership${message.giftCount > 1 ? 's' : ''}`
               : message.membershipLevel || 'New member'}
           </span>
-          <time className="memberItem__time">{new Date(message.publishedAt).toLocaleTimeString()}</time>
+          <time className="memberItem__time">{formatTimestamp(message.publishedAt, timezone)}</time>
         </div>
       </div>
       {message.runs?.length ? (

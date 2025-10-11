@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useRef } from 'react';
 import type { ChatMessage } from '@shared/chat';
+import { useTimezone } from '../../lib/TimezoneContext';
+import { formatTimestamp } from '../../lib/timezone';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4100';
 
@@ -14,6 +16,7 @@ export default function OverlayPage() {
   const [connected, setConnected] = useState(false);
   const [fadingOut, setFadingOut] = useState(false);
   const connectionRef = useRef<EventSource | null>(null);
+  const { timezone } = useTimezone();
 
   useEffect(() => {
     // Prevent multiple connections
@@ -143,6 +146,7 @@ export default function OverlayPage() {
                         </span>
                       )
                     ))}
+                    <time className="overlay__timestamp">{formatTimestamp(message.publishedAt, timezone)}</time>
                   </div>
                 </div>
               </div>

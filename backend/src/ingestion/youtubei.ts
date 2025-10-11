@@ -64,6 +64,11 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
   const emitter: ChatEventEmitter = new EventEmitter();
 
   liveChat.on('chat-update', (action: any) => {
+    // Log the complete raw action data from YouTube (commented out for production)
+    // console.log('=== YOUTUBE RAW MESSAGE DATA ===');
+    // console.log('Action type:', action?.type);
+    // console.log('Complete action object:', JSON.stringify(action, null, 2));
+    
     const normalized = normalizeAction(action);
     if (normalized) {
       emitter.emit('message', normalized);
@@ -156,8 +161,23 @@ function resolveTimestamp(timestamp: number | string | undefined): string {
   }
 
   const numeric = typeof timestamp === 'string' ? Number(timestamp) : timestamp;
+  
   if (Number.isFinite(numeric)) {
-    const millis = numeric > 1e12 ? numeric / 1000 : numeric;
+    // YouTube timestamps are in microseconds (16 digits) or milliseconds (13 digits)
+    // If it's microseconds (>= 1e15), divide by 1000 to get milliseconds
+    // If it's milliseconds (>= 1e12), use as is
+    let millis: number;
+    if (numeric >= 1e15) {
+      // Microseconds - convert to milliseconds
+      millis = numeric / 1000;
+    } else if (numeric >= 1e12) {
+      // Already milliseconds
+      millis = numeric;
+    } else {
+      // Fallback for smaller numbers
+      millis = numeric;
+    }
+    
     return new Date(millis).toISOString();
   }
 
@@ -389,6 +409,9 @@ function normalizeAction(action: any): ChatMessage | null {
       ? (item.header_subtext?.text || item.header_primary_text?.text || '')
       : '';
 
+    // Use timestamp_usec (microseconds) as it's more accurate than timestamp (milliseconds)
+    const timestampToUse = item.timestamp_usec ?? item.timestamp;
+
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
       author: authorName,
@@ -396,7 +419,7 @@ function normalizeAction(action: any): ChatMessage | null {
       authorChannelId: authorChannelId ? String(authorChannelId) : undefined,
       text: resolvedText || membershipFallbackText,
       runs: (() => { const r = resolveMessageRuns(item); return r.length ? r : undefined; })(),
-      publishedAt: resolveTimestamp(item.timestamp ?? item.timestamp_usec),
+      publishedAt: resolveTimestamp(timestampToUse),
       badges: badges.length > 0 ? badges : undefined,
       isModerator,
       isMember,
