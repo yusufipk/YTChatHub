@@ -12,9 +12,12 @@ type SelectionPayload = {
 
 export default function OverlayPage() {
   const [message, setMessage] = useState<ChatMessage | null>(null);
+  const [displayMessage, setDisplayMessage] = useState<ChatMessage | null>(null);
   const [connected, setConnected] = useState(false);
   const [fadingOut, setFadingOut] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const connectionRef = useRef<EventSource | null>(null);
+  const switchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Prevent multiple connections
@@ -30,22 +33,7 @@ export default function OverlayPage() {
     const onSelection = (event: MessageEvent) => {
       try {
         const payload: SelectionPayload = JSON.parse(event.data);
-        
-        setMessage((prevMessage) => {
-          if (payload.message === null && prevMessage !== null) {
-            // Trigger fade out animation before clearing
-            setFadingOut(true);
-            setTimeout(() => {
-              setMessage(null);
-              setFadingOut(false);
-            }, 300);
-            return prevMessage; // Keep current message during fade
-          } else {
-            setFadingOut(false);
-            return payload.message;
-          }
-        });
-        
+        setMessage(payload.message);
         setConnected(true);
       } catch (error) {
         console.error('overlay: failed to parse payload', error);
@@ -61,28 +49,64 @@ export default function OverlayPage() {
       source.removeEventListener('selection', onSelection as EventListener);
       source.close();
       connectionRef.current = null;
+      if (switchTimeoutRef.current) {
+        clearTimeout(switchTimeoutRef.current);
+      }
     };
   }, []); // Empty dependency array - only connect once
 
+  // Handle message transitions
+  useEffect(() => {
+    // Clear any pending timeout
+    if (switchTimeoutRef.current) {
+      clearTimeout(switchTimeoutRef.current);
+      switchTimeoutRef.current = null;
+    }
+
+    if (message === null && displayMessage !== null) {
+      // Deselecting - fade out
+      setFadingOut(true);
+      setSwitching(false);
+      switchTimeoutRef.current = setTimeout(() => {
+        setDisplayMessage(null);
+        setFadingOut(false);
+      }, 300);
+    } else if (message !== null && displayMessage !== null && message.id !== displayMessage.id) {
+      // Switching between messages - fade out then fade in
+      setSwitching(true);
+      setFadingOut(true);
+      switchTimeoutRef.current = setTimeout(() => {
+        setDisplayMessage(message);
+        setFadingOut(false);
+        setSwitching(false);
+      }, 300);
+    } else if (message !== null && displayMessage === null) {
+      // First message - just show it
+      setDisplayMessage(message);
+      setFadingOut(false);
+      setSwitching(false);
+    }
+  }, [message, displayMessage]);
+
   return (
     <main className="overlay">
-      {message ? (
+      {displayMessage ? (
         <div className={`overlay__card ${fadingOut ? 'overlay__card--fadeOut' : ''}`}>
-          {message.superChat ? (
+          {displayMessage.superChat ? (
             <>
-              <div className="overlay__superchat-header" style={{ backgroundColor: message.superChat.color }}>
-                {message.authorPhoto && (
-                  <img src={proxyImageUrl(message.authorPhoto)} alt={message.author} className="overlay__superchat-avatar" />
+              <div className="overlay__superchat-header" style={{ backgroundColor: displayMessage.superChat.color }}>
+                {displayMessage.authorPhoto && (
+                  <img src={proxyImageUrl(displayMessage.authorPhoto)} alt={displayMessage.author} className="overlay__superchat-avatar" />
                 )}
-                <span className="overlay__superchat-name">{message.author}</span>
+                <span className="overlay__superchat-name">{displayMessage.author}</span>
                 <span className="overlay__superchat-separator"> - </span>
                 <span className="overlay__superchat-amount">
-                  {message.superChat.currency}{message.superChat.currency ? ' ' : ''}{message.superChat.amount}
+                  {displayMessage.superChat.currency}{displayMessage.superChat.currency ? ' ' : ''}{displayMessage.superChat.amount}
                 </span>
               </div>
-              {message.runs?.length ? (
+              {displayMessage.runs?.length ? (
                 <p className="overlay__superchat-text">
-                  {message.runs.map((r, i) =>
+                  {displayMessage.runs.map((r, i) =>
                     r.emojiUrl ? (
                       <img key={i} src={proxyImageUrl(r.emojiUrl)} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
                     ) : (
@@ -90,29 +114,29 @@ export default function OverlayPage() {
                     )
                   )}
                 </p>
-              ) : message.text && message.text !== 'N/A' && (
-                <p className="overlay__superchat-text">{message.text}</p>
+              ) : displayMessage.text && displayMessage.text !== 'N/A' && (
+                <p className="overlay__superchat-text">{displayMessage.text}</p>
               )}
             </>
-          ) : (message.membershipGift || message.membershipGiftPurchase) ? (
+          ) : (displayMessage.membershipGift || displayMessage.membershipGiftPurchase) ? (
             <>
               <div className="overlay__membership-header">
-                {message.authorPhoto && (
-                  <img src={proxyImageUrl(message.authorPhoto)} alt={message.author} className="overlay__membership-avatar" />
+                {displayMessage.authorPhoto && (
+                  <img src={proxyImageUrl(displayMessage.authorPhoto)} alt={displayMessage.author} className="overlay__membership-avatar" />
                 )}
                 <div className="overlay__membership-info">
-                  <span className="overlay__membership-name">{message.author}</span>
+                  <span className="overlay__membership-name">{displayMessage.author}</span>
                   <span className="overlay__membership-separator"> - </span>
                   <span className="overlay__membership-level">
-                    {message.membershipGiftPurchase && message.giftCount
-                      ? `Sent ${message.giftCount} Gift Membership${message.giftCount > 1 ? 's' : ''}`
-                      : message.membershipLevel || 'New Member'}
+                    {displayMessage.membershipGiftPurchase && displayMessage.giftCount
+                      ? `Sent ${displayMessage.giftCount} Gift Membership${displayMessage.giftCount > 1 ? 's' : ''}`
+                      : displayMessage.membershipLevel || 'New Member'}
                   </span>
                 </div>
               </div>
-              {message.runs?.length ? (
+              {displayMessage.runs?.length ? (
                 <p className="overlay__membership-text">
-                  {message.runs.map((r, i) =>
+                  {displayMessage.runs.map((r, i) =>
                     r.emojiUrl ? (
                       <img key={i} src={proxyImageUrl(r.emojiUrl)} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
                     ) : (
@@ -120,20 +144,20 @@ export default function OverlayPage() {
                     )
                   )}
                 </p>
-              ) : message.text && message.text !== 'N/A' && (
-                <p className="overlay__membership-text">{message.text}</p>
+              ) : displayMessage.text && displayMessage.text !== 'N/A' && (
+                <p className="overlay__membership-text">{displayMessage.text}</p>
               )}
             </>
           ) : (
             <>
               <div className="overlay__header">
-                {message.authorPhoto && (
-                  <img src={proxyImageUrl(message.authorPhoto)} alt={message.author} className="overlay__avatar" />
+                {displayMessage.authorPhoto && (
+                  <img src={proxyImageUrl(displayMessage.authorPhoto)} alt={displayMessage.author} className="overlay__avatar" />
                 )}
                 <div>
                   <div className="overlay__authorLine">
-                    <span className="overlay__author">{message.author}</span>
-                    {message.badges && message.badges.map((badge, i) => (
+                    <span className="overlay__author">{displayMessage.author}</span>
+                    {displayMessage.badges && displayMessage.badges.map((badge, i) => (
                       badge.imageUrl ? (
                         <img key={i} src={proxyImageUrl(badge.imageUrl)} alt={badge.label} className="overlay__badge overlay__badge--image" title={badge.label} />
                       ) : (
@@ -147,9 +171,9 @@ export default function OverlayPage() {
                   </div>
                 </div>
               </div>
-              {message.runs?.length ? (
+              {displayMessage.runs?.length ? (
                 <p className="overlay__text">
-                  {message.runs.map((r, i) =>
+                  {displayMessage.runs.map((r, i) =>
                     r.emojiUrl ? (
                       <img key={i} src={proxyImageUrl(r.emojiUrl)} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
                     ) : (
@@ -157,8 +181,8 @@ export default function OverlayPage() {
                     )
                   )}
                 </p>
-              ) : message.text && message.text !== 'N/A' && (
-                <p className="overlay__text">{message.text}</p>
+              ) : displayMessage.text && displayMessage.text !== 'N/A' && (
+                <p className="overlay__text">{displayMessage.text}</p>
               )}
             </>
           )}
