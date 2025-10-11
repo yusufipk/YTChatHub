@@ -45,6 +45,10 @@ export default function DashboardPage() {
   const { selection, status: overlayStatus } = useOverlaySelection();
   const { connected, liveId, connect, disconnect, connecting } = useConnection();
   const [confirmUrl, setConfirmUrl] = useState<string | null>(null);
+  const [superChatPulse, setSuperChatPulse] = useState(false);
+  const [memberPulse, setMemberPulse] = useState(false);
+  const prevSuperChatCountRef = useRef(0);
+  const prevMemberCountRef = useRef(0);
 
   const handleSelect = useCallback(
     async (message: ChatMessage) => {
@@ -109,6 +113,38 @@ export default function DashboardPage() {
   const newMembers = useMemo(() => messages.filter(m => m.membershipGift || m.membershipGiftPurchase), [messages]);
   const regularMessages = useMemo(() => messages.filter(m => !m.superChat && !m.membershipGift && !m.membershipGiftPurchase), [messages]);
 
+  // Detect new superchats and trigger pulse
+  useEffect(() => {
+    const prevCount = prevSuperChatCountRef.current;
+    const currentCount = superChats.length;
+    
+    // Trigger pulse if count increased (but not on initial mount when both are 0)
+    if (currentCount > prevCount && !(prevCount === 0 && currentCount === 0)) {
+      setSuperChatPulse(true);
+      const timer = setTimeout(() => setSuperChatPulse(false), 10000);
+      prevSuperChatCountRef.current = currentCount;
+      return () => clearTimeout(timer);
+    }
+    
+    prevSuperChatCountRef.current = currentCount;
+  }, [superChats.length]);
+
+  // Detect new members and trigger pulse
+  useEffect(() => {
+    const prevCount = prevMemberCountRef.current;
+    const currentCount = newMembers.length;
+    
+    // Trigger pulse if count increased (but not on initial mount when both are 0)
+    if (currentCount > prevCount && !(prevCount === 0 && currentCount === 0)) {
+      setMemberPulse(true);
+      const timer = setTimeout(() => setMemberPulse(false), 10000);
+      prevMemberCountRef.current = currentCount;
+      return () => clearTimeout(timer);
+    }
+    
+    prevMemberCountRef.current = currentCount;
+  }, [newMembers.length]);
+
   return (
     <main className="dashboard">
       {!connected && (
@@ -144,10 +180,10 @@ export default function DashboardPage() {
             <div className="tab">
               Messages <span className="tab__count">{regularMessages.length}</span>
             </div>
-            <div className="tab">
+            <div className={`tab ${superChatPulse ? 'tab--pulse' : ''}`}>
               Superchats <span className="tab__count">{superChats.length}</span>
             </div>
-            <div className="tab">
+            <div className={`tab ${memberPulse ? 'tab--pulse' : ''}`}>
               Members <span className="tab__count">{newMembers.length}</span>
             </div>
             <button className="btn-reset" onClick={disconnect} title="Reset stream connection">
