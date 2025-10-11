@@ -34,6 +34,7 @@
 - [ ] Add theme controls and customization options.
 
 ## Phase 4 – Reliability & Polish
+- [x] Implement image proxy with caching to prevent YouTube CDN 429 errors.
 - [ ] Expand logging/metrics for long-stream observability.
 - [ ] Write tests (unit/integration) and contributor documentation.
 
@@ -47,4 +48,5 @@
 - **✅ Timestamp Resolution Fixed**: Critical bug resolved - timestamps now display correct current time instead of 1970 epoch
 - **✅ Timezone Support**: All timestamps display in user's local timezone with browser detection and GMT+3 fallback
 - **✅ Visual Selection States**: Three-tier feedback system (active/normal/previously-selected) for better UX
+- **✅ Image Proxy Implemented**: Backend now proxies all YouTube CDN images (avatars, badges, emojis) with 24hr in-memory cache to prevent 429 rate limit errors
 - **Next**: Add search/filter, error recovery, and polish UX details

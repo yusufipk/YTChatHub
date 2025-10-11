@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import type { ChatMessage } from '@shared/chat';
 import { useTimezone } from '../../lib/TimezoneContext';
 import { formatTimestamp } from '../../lib/timezone';
+import { proxyImageUrl } from '../../lib/imageProxy';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4100';
 
@@ -74,7 +75,7 @@ export default function OverlayPage() {
             <>
               <div className="overlay__superchat-header" style={{ backgroundColor: message.superChat.color }}>
                 {message.authorPhoto && (
-                  <img src={message.authorPhoto} alt={message.author} className="overlay__superchat-avatar" />
+                  <img src={proxyImageUrl(message.authorPhoto)} alt={message.author} className="overlay__superchat-avatar" />
                 )}
                 <span className="overlay__superchat-name">{message.author}</span>
                 <span className="overlay__superchat-separator"> - </span>
@@ -86,7 +87,7 @@ export default function OverlayPage() {
                 <p className="overlay__superchat-text">
                   {message.runs.map((r, i) =>
                     r.emojiUrl ? (
-                      <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
+                      <img key={i} src={proxyImageUrl(r.emojiUrl)} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
                     ) : (
                       <span key={i}>{r.text}</span>
                     )
@@ -100,7 +101,7 @@ export default function OverlayPage() {
             <>
               <div className="overlay__membership-header">
                 {message.authorPhoto && (
-                  <img src={message.authorPhoto} alt={message.author} className="overlay__membership-avatar" />
+                  <img src={proxyImageUrl(message.authorPhoto)} alt={message.author} className="overlay__membership-avatar" />
                 )}
                 <div className="overlay__membership-info">
                   <span className="overlay__membership-name">{message.author}</span>
@@ -116,7 +117,7 @@ export default function OverlayPage() {
                 <p className="overlay__membership-text">
                   {message.runs.map((r, i) =>
                     r.emojiUrl ? (
-                      <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
+                      <img key={i} src={proxyImageUrl(r.emojiUrl)} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
                     ) : (
                       <span key={i}>{r.text}</span>
                     )
@@ -130,14 +131,14 @@ export default function OverlayPage() {
             <>
               <div className="overlay__header">
                 {message.authorPhoto && (
-                  <img src={message.authorPhoto} alt={message.author} className="overlay__avatar" />
+                  <img src={proxyImageUrl(message.authorPhoto)} alt={message.author} className="overlay__avatar" />
                 )}
                 <div>
                   <div className="overlay__authorLine">
                     <span className="overlay__author">{message.author}</span>
                     {message.badges && message.badges.map((badge, i) => (
                       badge.imageUrl ? (
-                        <img key={i} src={badge.imageUrl} alt={badge.label} className="overlay__badge overlay__badge--image" title={badge.label} />
+                        <img key={i} src={proxyImageUrl(badge.imageUrl)} alt={badge.label} className="overlay__badge overlay__badge--image" title={badge.label} />
                       ) : (
                         <span key={i} className={`overlay__badge overlay__badge--${badge.type}`} title={badge.label}>
                           {badge.type === 'moderator' && '🛡️'}
@@ -154,7 +155,7 @@ export default function OverlayPage() {
                 <p className="overlay__text">
                   {message.runs.map((r, i) =>
                     r.emojiUrl ? (
-                      <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
+                      <img key={i} src={proxyImageUrl(r.emojiUrl)} alt={r.emojiAlt || 'emoji'} className="overlay__emoji" />
                     ) : (
                       <span key={i}>{r.text}</span>
                     )

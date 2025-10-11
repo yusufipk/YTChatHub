@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import type { ChatMessage } from '@shared/chat';
 import { useTimezone } from '../../lib/TimezoneContext';
 import { formatTimestamp } from '../../lib/timezone';
+import { proxyImageUrl } from '../../lib/imageProxy';
 
 // URL regex for detecting links (http/https)
 const URL_REGEX = /(https?:\/\/[^\s]+)/gi;
@@ -607,7 +608,7 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySele
     >
       <div className="chatItem__header">
         {message.authorPhoto && (
-          <img src={message.authorPhoto} alt={message.author} className="chatItem__avatar" />
+          <img src={proxyImageUrl(message.authorPhoto)} alt={message.author} className="chatItem__avatar" />
         )}
         <div className="chatItem__meta">
           <div className="chatItem__authorLine">
@@ -617,7 +618,7 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySele
             <span className="chatItem__author">{message.author}</span>
             {message.badges && message.badges.map((badge, i) => (
               badge.imageUrl ? (
-                <img key={i} src={badge.imageUrl} alt={badge.label} className="badge badge--image" title={badge.label} />
+                <img key={i} src={proxyImageUrl(badge.imageUrl)} alt={badge.label} className="badge badge--image" title={badge.label} />
               ) : (
                 <span key={i} className={`badge badge--${badge.type}`} title={badge.label}>
                   {badge.type === 'moderator' && '🛡️'}
@@ -639,7 +640,7 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySele
         <p className="chatItem__text">
           {message.runs.map((r, i) =>
             r.emojiUrl ? (
-              <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="chatItem__emoji" />
+              <img key={i} src={proxyImageUrl(r.emojiUrl)} alt={r.emojiAlt || 'emoji'} className="chatItem__emoji" />
             ) : (
               <span key={i}><MessageText text={r.text || ''} onLinkClick={onLinkClick} /></span>
             )
@@ -670,7 +671,7 @@ function MemberItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySe
     >
       <div className="memberItem__header">
         {message.authorPhoto && (
-          <img src={message.authorPhoto} alt={message.author} className="memberItem__avatar" />
+          <img src={proxyImageUrl(message.authorPhoto)} alt={message.author} className="memberItem__avatar" />
         )}
         <div className="memberItem__info">
           <span className="memberItem__author">{message.author}</span>
@@ -686,7 +687,7 @@ function MemberItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySe
         <p className="memberItem__text">
           {message.runs.map((r, i) =>
             r.emojiUrl ? (
-              <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="memberItem__emoji" />
+              <img key={i} src={proxyImageUrl(r.emojiUrl)} alt={r.emojiAlt || 'emoji'} className="memberItem__emoji" />
             ) : (
               <span key={i}><MessageText text={r.text || ''} onLinkClick={onLinkClick} /></span>
             )

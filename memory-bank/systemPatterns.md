@@ -18,3 +18,4 @@
 - **Timezone Context Pattern**: React context provider (`TimezoneContext`) manages browser timezone detection and shares across components for consistent timestamp formatting.
 - **Selection State Management**: Three-tier visual state system (active/selected, normal, previously-selected) with CSS class composition for clear user feedback.
 - **Timestamp Resolution**: Backend uses `timestamp_usec` (microseconds) from YouTube data, converts to milliseconds, and frontend formats in user's local timezone.
+- **Image Proxy Pattern**: Backend `/proxy/image` endpoint caches YouTube CDN images (avatars, badges, emojis) with MD5-hashed keys, 24hr TTL, and 1000-image LRU eviction. Returns stale cache on 429 errors or network failures. Frontend `proxyImageUrl()` helper transparently rewrites YouTube CDN URLs to use proxy.

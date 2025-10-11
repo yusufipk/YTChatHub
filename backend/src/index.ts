@@ -3,8 +3,14 @@ import cors from '@fastify/cors';
 import EventEmitter from 'eventemitter3';
 import type { ChatMessage } from '@shared/chat';
 import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei';
+import crypto from 'crypto';
 
 const MAX_MESSAGES = 500;
+
+// Simple in-memory cache for images
+const imageCache = new Map<string, { buffer: Buffer; contentType: string; timestamp: number }>();
+const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
+const MAX_CACHE_SIZE = 1000; // Maximum number of cached images
 
 export async function startBackend() {
   const fastify = Fastify({
@@ -206,6 +212,101 @@ export async function startBackend() {
       clearInterval(heartbeat);
       overlayEmitter.off('update', send);
     });
+  });
+
+  // Image proxy endpoint to avoid YouTube CDN rate limits
+  fastify.get<{ Querystring: { url: string } }>('/proxy/image', async (request, reply) => {
+    const { url } = request.query;
+    
+    if (!url || typeof url !== 'string') {
+      reply.status(400);
+      return { error: 'url parameter is required' };
+    }
+
+    // Only allow YouTube CDN domains
+    const allowedDomains = ['yt3.ggpht.com', 'yt4.ggpht.com', 'i.ytimg.com'];
+    try {
+      const urlObj = new URL(url);
+      if (!allowedDomains.includes(urlObj.hostname)) {
+        reply.status(403);
+        return { error: 'Only YouTube CDN URLs are allowed' };
+      }
+    } catch (error) {
+      reply.status(400);
+      return { error: 'Invalid URL' };
+    }
+
+    // Create cache key from URL
+    const cacheKey = crypto.createHash('md5').update(url).digest('hex');
+    
+    // Check cache
+    const cached = imageCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      reply.header('Content-Type', cached.contentType);
+      reply.header('Cache-Control', 'public, max-age=86400'); // 24 hours
+      reply.header('Access-Control-Allow-Origin', '*');
+      return reply.send(cached.buffer);
+    }
+
+    // Fetch from YouTube
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Referer': 'https://www.youtube.com/',
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          console.warn('[Backend] Rate limited by YouTube CDN for:', url);
+          // Return from cache even if expired, or return error
+          if (cached) {
+            reply.header('Content-Type', cached.contentType);
+            reply.header('Cache-Control', 'public, max-age=86400');
+            reply.header('Access-Control-Allow-Origin', '*');
+            return reply.send(cached.buffer);
+          }
+        }
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+      // Cache the image
+      imageCache.set(cacheKey, {
+        buffer,
+        contentType,
+        timestamp: Date.now()
+      });
+
+      // Cleanup old cache entries if we exceed max size
+      if (imageCache.size > MAX_CACHE_SIZE) {
+        const entries = Array.from(imageCache.entries());
+        entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+        const toDelete = entries.slice(0, Math.floor(MAX_CACHE_SIZE * 0.2)); // Remove oldest 20%
+        toDelete.forEach(([key]) => imageCache.delete(key));
+      }
+
+      reply.header('Content-Type', contentType);
+      reply.header('Cache-Control', 'public, max-age=86400');
+      reply.header('Access-Control-Allow-Origin', '*');
+      return reply.send(buffer);
+    } catch (error) {
+      console.error('[Backend] Failed to proxy image:', error);
+      
+      // Try to return stale cache if available
+      if (cached) {
+        reply.header('Content-Type', cached.contentType);
+        reply.header('Cache-Control', 'public, max-age=86400');
+        reply.header('Access-Control-Allow-Origin', '*');
+        return reply.send(cached.buffer);
+      }
+      
+      reply.status(500);
+      return { error: 'Failed to fetch image' };
+    }
   });
 
   const port = Number(process.env.PORT ?? 4100);

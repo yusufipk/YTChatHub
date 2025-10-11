@@ -7,6 +7,7 @@
 - **Rich message parsing**: Full support for superchats, memberships, badges (moderator, member, verified)
 - **Timezone-aware timestamps**: All message timestamps display in user's local timezone with proper browser detection
 - **Visual selection feedback**: Previously selected messages show dimmed state for better user experience
+- **Image proxy implemented**: Backend proxies all YouTube CDN images with caching to prevent 429 rate limit errors
 
 ## Recent Decisions
 - Fixed CORS issues by setting headers on raw response object after `reply.hijack()` for SSE endpoint
@@ -24,14 +25,16 @@
 - **Timezone Support**: Implemented browser timezone detection and proper timestamp formatting across dashboard and overlay using `Intl.DateTimeFormat` with GMT+3 fallback.
 - **Visual Selection States**: Added three-tier visual feedback system - active (selected), normal, and previously-selected (dimmed) states for better user experience.
 - **UI Polish**: Fixed pulse animations on initial load, hidden N/A messages, and improved overlay timestamp display.
+- **Image Proxy**: Added `/proxy/image` endpoint in backend with in-memory caching (24hr TTL, max 1000 images) to prevent YouTube CDN 429 rate limit errors. All avatars, badges, and emojis now route through proxy with stale-on-error fallback.
 
 ## Immediate Next Steps
 1. Test with live YouTube stream to verify badge parsing and superchat detection
 2. Add search/filter functionality for chat messages
 3. Implement error recovery and reconnection logic for stream interruptions
 4. Add keyboard shortcuts for quick message selection
+5. Consider persistent cache for images (SQLite or file-based) for better reliability
 
 ## Open Questions
 - Whether to add message search/filtering UI controls
-- How to handle rate limiting and backoff strategies for long streams
 - Whether to persist Innertube visitor data between runs
+- Should image cache be persistent across restarts?
