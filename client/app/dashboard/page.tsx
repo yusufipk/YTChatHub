@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [confirmUrl, setConfirmUrl] = useState<string | null>(null);
   const [superChatPulse, setSuperChatPulse] = useState(false);
   const [memberPulse, setMemberPulse] = useState(false);
+  const [previouslySelected, setPreviouslySelected] = useState<Set<string>>(new Set());
   const prevSuperChatCountRef = useRef(0);
   const prevMemberCountRef = useRef(0);
   const hasInitializedRef = useRef(false);
@@ -66,6 +67,9 @@ export default function DashboardPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: message.id })
           });
+          
+          // Mark this message as previously selected
+          setPreviouslySelected(prev => new Set([...prev, message.id]));
         }
       } catch (error) {
         console.error('Failed to select message', error);
@@ -228,6 +232,7 @@ export default function DashboardPage() {
                     isSelected={selection?.id === message.id}
                     onSelect={() => handleSelect(message)}
                     onLinkClick={handleLinkClick}
+                    isPreviouslySelected={previouslySelected.has(message.id)}
                   />
                 )}
                 emptyState={
@@ -252,6 +257,7 @@ export default function DashboardPage() {
                       isSelected={selection?.id === message.id}
                       onSelect={() => handleSelect(message)}
                       onLinkClick={handleLinkClick}
+                      isPreviouslySelected={previouslySelected.has(message.id)}
                     />
                   )}
                   emptyState={
@@ -275,6 +281,7 @@ export default function DashboardPage() {
                       isSelected={selection?.id === message.id}
                       onSelect={() => handleSelect(message)}
                       onLinkClick={handleLinkClick}
+                      isPreviouslySelected={previouslySelected.has(message.id)}
                     />
                   )}
                   emptyState={
@@ -511,6 +518,7 @@ type ChatItemProps = {
   isSelected: boolean;
   onSelect: () => void;
   onLinkClick: (url: string) => void;
+  isPreviouslySelected?: boolean;
 };
 
 function MessageText({ text, onLinkClick }: { text: string; onLinkClick: (url: string) => void }) {
@@ -583,12 +591,18 @@ function ChatListPanel({ messages, renderItem, emptyState }: ChatListPanelProps)
   );
 }
 
-function ChatItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps) {
+function ChatItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySelected }: ChatItemProps) {
   const { timezone } = useTimezone();
+  
+  const className = [
+    'chatItem',
+    isSelected ? 'chatItem--active' : '',
+    isPreviouslySelected ? 'chatItem--previously-selected' : ''
+  ].filter(Boolean).join(' ');
   
   return (
     <button
-      className={isSelected ? 'chatItem chatItem--active' : 'chatItem'}
+      className={className}
       onClick={onSelect}
     >
       <div className="chatItem__header">
@@ -640,12 +654,18 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps)
   );
 }
 
-function MemberItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps) {
+function MemberItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySelected }: ChatItemProps) {
   const { timezone } = useTimezone();
+  
+  const className = [
+    'memberItem',
+    isSelected ? 'memberItem--active' : '',
+    isPreviouslySelected ? 'memberItem--previously-selected' : ''
+  ].filter(Boolean).join(' ');
   
   return (
     <button
-      className={isSelected ? 'memberItem memberItem--active' : 'memberItem'}
+      className={className}
       onClick={onSelect}
     >
       <div className="memberItem__header">

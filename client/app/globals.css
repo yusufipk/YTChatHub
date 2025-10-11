@@ -650,6 +650,17 @@ main {
   filter: brightness(0.85);
 }
 
+.chatItem--previously-selected {
+  filter: brightness(0.6);
+  opacity: 0.7;
+}
+
+/* Ensure active state overrides previously selected state */
+.chatItem--active.chatItem--previously-selected {
+  filter: brightness(0.85);
+  opacity: 1;
+}
+
 .chatItem__header {
   display: flex;
   gap: 0.75rem;
@@ -798,6 +809,17 @@ main {
   border-color: rgba(16, 185, 129, 0.5);
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
   filter: brightness(0.85);
+}
+
+.memberItem--previously-selected {
+  filter: brightness(0.6);
+  opacity: 0.7;
+}
+
+/* Ensure active state overrides previously selected state */
+.memberItem--active.memberItem--previously-selected {
+  filter: brightness(0.85);
+  opacity: 1;
 }
 
 .memberItem__header {
