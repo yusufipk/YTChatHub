@@ -18,16 +18,22 @@ export default function DashboardPage() {
   const handleSelect = useCallback(
     async (message: ChatMessage) => {
       try {
-        await fetch(`${BACKEND_URL}/overlay/selection`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: message.id })
-        });
+        // If clicking the already-selected message, clear it
+        if (selection?.id === message.id) {
+          await fetch(`${BACKEND_URL}/overlay/selection`, { method: 'DELETE' });
+        } else {
+          // Otherwise, select the new message
+          await fetch(`${BACKEND_URL}/overlay/selection`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: message.id })
+          });
+        }
       } catch (error) {
         console.error('Failed to select message', error);
       }
     },
-    []
+    [selection]
   );
 
   const handleClear = useCallback(async () => {
