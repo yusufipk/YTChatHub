@@ -3,7 +3,7 @@
 ## Phase 0 – Foundations
 - [x] Create Memory Bank documentation.
 - [x] Simplify project layout (single package, shared types via alias).
-- [ ] Document setup instructions for the new command set.
+- [x] Document setup instructions for the new command set.
 
 ## Phase 1 – Core Infrastructure
 - [x] Implement Innertube client bootstrap (retrieve context, manage continuation tokens).
@@ -30,11 +30,14 @@
 - [x] Ensure transparent background for OBS browser source.
 - [x] Display new member announcements on overlay.
 - [x] Timezone-aware timestamp display on overlay.
-- [ ] Add entrance/exit animations for message transitions.
+- [x] Add entrance/exit animations for message transitions.
 - [ ] Add theme controls and customization options.
 
 ## Phase 4 – Reliability & Polish
 - [x] Implement image proxy with caching to prevent YouTube CDN 429 errors.
+- [ ] Refactor the code
+- [ ] Add log-in and unique stream id for each logged in user
+- [ ] Ensure the deployment.
 - [ ] Expand logging/metrics for long-stream observability.
 - [ ] Write tests (unit/integration) and contributor documentation.
 
