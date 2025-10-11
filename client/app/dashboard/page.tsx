@@ -3,6 +3,36 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import type { ChatMessage } from '@shared/chat';
 
+// URL regex for detecting links (http/https)
+const URL_REGEX = /(https?:\/\/[^\s]+)/gi;
+
+function parseTextWithLinks(text: string): Array<{ type: 'text' | 'link'; content: string }> {
+  const parts: Array<{ type: 'text' | 'link'; content: string }> = [];
+  let lastIndex = 0;
+  const matches = text.matchAll(URL_REGEX);
+  
+  for (const match of matches) {
+    const url = match[0];
+    const index = match.index!;
+    
+    // Add text before the URL
+    if (index > lastIndex) {
+      parts.push({ type: 'text', content: text.slice(lastIndex, index) });
+    }
+    
+    // Add the URL
+    parts.push({ type: 'link', content: url });
+    lastIndex = index + url.length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.slice(lastIndex) });
+  }
+  
+  return parts.length > 0 ? parts : [{ type: 'text', content: text }];
+}
+
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4100';
 const POLL_INTERVAL = 2500;
 
@@ -14,6 +44,7 @@ export default function DashboardPage() {
   const { messages, refresh, error: pollError } = useChatMessages();
   const { selection, status: overlayStatus } = useOverlaySelection();
   const { connected, liveId, connect, disconnect, connecting } = useConnection();
+  const [confirmUrl, setConfirmUrl] = useState<string | null>(null);
 
   const handleSelect = useCallback(
     async (message: ChatMessage) => {
@@ -58,6 +89,21 @@ export default function DashboardPage() {
     if (overlayStatus === 'error') return 'Overlay stream disconnected';
     return 'Live';
   }, [pollError, overlayStatus]);
+
+  const handleLinkClick = useCallback((url: string) => {
+    setConfirmUrl(url);
+  }, []);
+
+  const handleConfirmOpen = useCallback(() => {
+    if (confirmUrl) {
+      window.open(confirmUrl, '_blank', 'noopener,noreferrer');
+      setConfirmUrl(null);
+    }
+  }, [confirmUrl]);
+
+  const handleCancelOpen = useCallback(() => {
+    setConfirmUrl(null);
+  }, []);
 
   const superChats = useMemo(() => messages.filter(m => m.superChat), [messages]);
   const newMembers = useMemo(() => messages.filter(m => m.membershipGift || m.membershipGiftPurchase), [messages]);
@@ -129,6 +175,7 @@ export default function DashboardPage() {
                     message={message}
                     isSelected={selection?.id === message.id}
                     onSelect={() => handleSelect(message)}
+                    onLinkClick={handleLinkClick}
                   />
                 )}
                 emptyState={
@@ -152,6 +199,7 @@ export default function DashboardPage() {
                       message={message}
                       isSelected={selection?.id === message.id}
                       onSelect={() => handleSelect(message)}
+                      onLinkClick={handleLinkClick}
                     />
                   )}
                   emptyState={
@@ -174,6 +222,7 @@ export default function DashboardPage() {
                       message={message}
                       isSelected={selection?.id === message.id}
                       onSelect={() => handleSelect(message)}
+                      onLinkClick={handleLinkClick}
                     />
                   )}
                   emptyState={
@@ -186,6 +235,23 @@ export default function DashboardPage() {
             </div>
           </section>
         </>
+      )}
+
+      {confirmUrl && (
+        <div className="modal-overlay" onClick={handleCancelOpen}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal__title">Open External Link?</h3>
+            <p className="modal__url">{confirmUrl}</p>
+            <div className="modal__actions">
+              <button className="modal__btn modal__btn--cancel" onClick={handleCancelOpen}>
+                Cancel
+              </button>
+              <button className="modal__btn modal__btn--confirm" onClick={handleConfirmOpen}>
+                Open Link
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
@@ -392,7 +458,34 @@ type ChatItemProps = {
   message: ChatMessage;
   isSelected: boolean;
   onSelect: () => void;
+  onLinkClick: (url: string) => void;
 };
+
+function MessageText({ text, onLinkClick }: { text: string; onLinkClick: (url: string) => void }) {
+  const parts = parseTextWithLinks(text);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.type === 'link' ? (
+          <a
+            key={i}
+            href="#"
+            className="message-link"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onLinkClick(part.content);
+            }}
+          >
+            {part.content}
+          </a>
+        ) : (
+          <span key={i}>{part.content}</span>
+        )
+      )}
+    </>
+  );
+}
 
 type ChatListPanelProps = {
   messages: ChatMessage[];
@@ -438,7 +531,7 @@ function ChatListPanel({ messages, renderItem, emptyState }: ChatListPanelProps)
   );
 }
 
-function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
+function ChatItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps) {
   return (
     <button
       className={isSelected ? 'chatItem chatItem--active' : 'chatItem'}
@@ -480,16 +573,20 @@ function ChatItem({ message, isSelected, onSelect }: ChatItemProps) {
             r.emojiUrl ? (
               <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="chatItem__emoji" />
             ) : (
-              <span key={i}>{r.text}</span>
+              <span key={i}><MessageText text={r.text || ''} onLinkClick={onLinkClick} /></span>
             )
           )}
         </p>
-      ) : message.text && <p className="chatItem__text">{message.text}</p>}
+      ) : message.text && (
+        <p className="chatItem__text">
+          <MessageText text={message.text} onLinkClick={onLinkClick} />
+        </p>
+      )}
     </button>
   );
 }
 
-function MemberItem({ message, isSelected, onSelect }: ChatItemProps) {
+function MemberItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps) {
   return (
     <button
       className={isSelected ? 'memberItem memberItem--active' : 'memberItem'}
@@ -515,11 +612,15 @@ function MemberItem({ message, isSelected, onSelect }: ChatItemProps) {
             r.emojiUrl ? (
               <img key={i} src={r.emojiUrl} alt={r.emojiAlt || 'emoji'} className="memberItem__emoji" />
             ) : (
-              <span key={i}>{r.text}</span>
+              <span key={i}><MessageText text={r.text || ''} onLinkClick={onLinkClick} /></span>
             )
           )}
         </p>
-      ) : message.text && <p className="memberItem__text">{message.text}</p>}
+      ) : message.text && (
+        <p className="memberItem__text">
+          <MessageText text={message.text} onLinkClick={onLinkClick} />
+        </p>
+      )}
     </button>
   );
 }
