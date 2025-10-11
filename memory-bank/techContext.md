@@ -5,6 +5,7 @@
 - **Backend Worker:** Node.js service run with `tsx`, using `youtubei.js` for Innertube chat ingestion, `fastify` + `@fastify/cors` for REST/SSE transport, and `eventemitter3` for internal pub/sub.
 - **Shared Types:** Simple TypeScript module in `shared/chat.ts`, imported via the `@shared/*` path alias defined in `tsconfig.base.json`.
 - **Realtime:** Server-Sent Events for overlay updates; WebSockets remain a future enhancement option.
+- **Timezone Handling:** Browser timezone detection via `Intl.DateTimeFormat().resolvedOptions().timeZone` with GMT+3 fallback for international users.
 
 ## Tooling & Commands
 - Single root `package.json`; `pnpm install` manages all deps.

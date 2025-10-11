@@ -15,3 +15,6 @@
 - Use shared TypeScript definitions via the `@shared` path alias to maintain type safety across backend and client.
 - Centralized logging in the backend with structured payloads for easier debugging during long streams.
 - Graceful degradation: backoff strategies for fetch failures and mock-data fallback keep the UI usable even without credentials.
+- **Timezone Context Pattern**: React context provider (`TimezoneContext`) manages browser timezone detection and shares across components for consistent timestamp formatting.
+- **Selection State Management**: Three-tier visual state system (active/selected, normal, previously-selected) with CSS class composition for clear user feedback.
+- **Timestamp Resolution**: Backend uses `timestamp_usec` (microseconds) from YouTube data, converts to milliseconds, and frontend formats in user's local timezone.

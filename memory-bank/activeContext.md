@@ -5,6 +5,8 @@
 - **Dark minimalist UI redesign**: Clean dashboard with dark theme (#0a0a0a background), tab-based navigation, grid layout, and minimal spacing
 - **Connection flow**: Shows connection prompt on startup, disappears after connecting to YouTube Live stream
 - **Rich message parsing**: Full support for superchats, memberships, badges (moderator, member, verified)
+- **Timezone-aware timestamps**: All message timestamps display in user's local timezone with proper browser detection
+- **Visual selection feedback**: Previously selected messages show dimmed state for better user experience
 
 ## Recent Decisions
 - Fixed CORS issues by setting headers on raw response object after `reply.hijack()` for SSE endpoint
@@ -18,6 +20,10 @@
 - **Conditional Auto-Scroll**: Implemented intelligent auto-scrolling that only activates when the user is at the bottom of the chat, preventing interruptions when reading older messages.
 - **Overlay Redesign**: The overlay has been completely restyled to match the dashboard's compact, dark theme. It now displays new member announcements.
 - **Gifted Memberships**: The 'Memberships & Milestones' panel now correctly displays the user who purchased the gift, not the recipient.
+- **Timestamp Resolution Fixed**: Resolved critical issue where timestamps showed 1970 epoch time. Now uses `timestamp_usec` (microseconds) from YouTube data and converts properly to user's local timezone.
+- **Timezone Support**: Implemented browser timezone detection and proper timestamp formatting across dashboard and overlay using `Intl.DateTimeFormat` with GMT+3 fallback.
+- **Visual Selection States**: Added three-tier visual feedback system - active (selected), normal, and previously-selected (dimmed) states for better user experience.
+- **UI Polish**: Fixed pulse animations on initial load, hidden N/A messages, and improved overlay timestamp display.
 
 ## Immediate Next Steps
 1. Test with live YouTube stream to verify badge parsing and superchat detection
