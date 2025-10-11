@@ -19,13 +19,16 @@
 - **UI Layout Fixed**: Adjusted the dashboard grid to eliminate unnecessary space and properly align content. The Super Chat card is now left-aligned for better visual consistency.
 - **Currency Parsing**: Improved the backend logic to correctly parse Super Chat amounts and currencies, including for non-standard formats like TRY. The hardcoded 'USD' fallback has been removed.
 - **Conditional Auto-Scroll**: Implemented intelligent auto-scrolling that only activates when the user is at the bottom of the chat, preventing interruptions when reading older messages.
-- **Overlay Redesign**: The overlay has been completely restyled to match the dashboard's compact, dark theme. It now displays new member announcements.
+- **Overlay Redesign**: The overlay has been completely restyled to match the dashboard's compact, dark theme with optimized spacing (30-40% more compact).
+- **Overlay Timestamps Removed**: Removed timestamps from overlay for cleaner OBS display while keeping them in dashboard.
 - **Gifted Memberships**: The 'Memberships & Milestones' panel now correctly displays the user who purchased the gift, not the recipient.
 - **Timestamp Resolution Fixed**: Resolved critical issue where timestamps showed 1970 epoch time. Now uses `timestamp_usec` (microseconds) from YouTube data and converts properly to user's local timezone.
-- **Timezone Support**: Implemented browser timezone detection and proper timestamp formatting across dashboard and overlay using `Intl.DateTimeFormat` with GMT+3 fallback.
+- **Timezone Support**: Implemented browser timezone detection and proper timestamp formatting across dashboard using `Intl.DateTimeFormat` with GMT+3 fallback.
 - **Visual Selection States**: Added three-tier visual feedback system - active (selected), normal, and previously-selected (dimmed) states for better user experience.
-- **UI Polish**: Fixed pulse animations on initial load, hidden N/A messages, and improved overlay timestamp display.
+- **UI Polish**: Fixed pulse animations on initial load, hidden N/A messages.
 - **Image Proxy**: Added `/proxy/image` endpoint in backend with in-memory caching (24hr TTL, max 1000 images) to prevent YouTube CDN 429 rate limit errors. All avatars, badges, and emojis now route through proxy with stale-on-error fallback.
+- **Message Switching Animation**: Added smooth fade-out/fade-in transitions when switching between selected messages in overlay (300ms duration).
+- **Smart Message Preservation**: Implemented intelligent message trimming - regular chat messages limited to 200, but superchats and memberships preserved for entire session. Trimming happens on every message to prevent loss of special messages.
 
 ## Immediate Next Steps
 1. Test with live YouTube stream to verify badge parsing and superchat detection

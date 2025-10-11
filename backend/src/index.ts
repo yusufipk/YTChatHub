@@ -6,6 +6,7 @@ import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei'
 import crypto from 'crypto';
 
 const MAX_MESSAGES = 500;
+const MAX_REGULAR_MESSAGES = 200; // Keep fewer regular messages
 
 // Simple in-memory cache for images
 const imageCache = new Map<string, { buffer: Buffer; contentType: string; timestamp: number }>();
@@ -45,9 +46,9 @@ export async function startBackend() {
       console.log(`[Backend] ✓ YouTube chat connected successfully`);
       ingestion.emitter.on('message', (message) => {
         store.push(message);
-        if (store.length > MAX_MESSAGES) {
-          store.splice(0, store.length - MAX_MESSAGES);
-        }
+        // Trim regularly to keep regular messages under control
+        // This ensures we don't wait until hitting MAX_MESSAGES
+        trimMessages(store);
       });
       ingestion.emitter.on('error', (error) => {
         console.error('[Backend] Innertube ingestion error:', error);
@@ -112,9 +113,9 @@ export async function startBackend() {
       
       ingestion.emitter.on('message', (message) => {
         store.push(message);
-        if (store.length > MAX_MESSAGES) {
-          store.splice(0, store.length - MAX_MESSAGES);
-        }
+        // Trim regularly to keep regular messages under control
+        // This ensures we don't wait until hitting MAX_MESSAGES
+        trimMessages(store);
       });
       
       ingestion.emitter.on('error', (error) => {
@@ -337,6 +338,63 @@ function extractLiveId(input: string): string {
   }
 }
 
+/**
+ * Intelligently trim messages while preserving superchats and memberships
+ * Regular messages are limited to MAX_REGULAR_MESSAGES
+ * Superchats and memberships are preserved for the entire session
+ */
+function trimMessages(store: ChatMessage[]): void {
+  // Count messages by type
+  let regularCount = 0;
+  const specialIndices: number[] = [];
+  
+  for (let i = 0; i < store.length; i++) {
+    const message = store[i];
+    const isSpecial = message.superChat || message.membershipGift || 
+                     message.membershipGiftPurchase || message.isMember;
+    if (isSpecial) {
+      specialIndices.push(i);
+    } else {
+      regularCount++;
+    }
+  }
+  
+  // Only trim if we have too many regular messages
+  if (regularCount > MAX_REGULAR_MESSAGES) {
+    const toRemove = regularCount - MAX_REGULAR_MESSAGES;
+    const specialSet = new Set(specialIndices);
+    
+    // Remove oldest regular messages (keep special messages)
+    let removed = 0;
+    const newStore: ChatMessage[] = [];
+    
+    for (let i = 0; i < store.length; i++) {
+      const isSpecial = specialSet.has(i);
+      
+      if (isSpecial) {
+        // Always keep special messages
+        newStore.push(store[i]);
+      } else {
+        // Keep regular messages if we haven't removed enough yet
+        if (removed < toRemove) {
+          removed++;
+          // Skip this message (delete it)
+        } else {
+          newStore.push(store[i]);
+        }
+      }
+    }
+    
+    // Replace store contents
+    store.length = 0;
+    store.push(...newStore);
+    
+    const newRegularCount = regularCount - toRemove;
+    const specialCount = specialIndices.length;
+    console.log(`[Backend] Trimmed ${toRemove} regular messages. Now: ${newRegularCount} regular + ${specialCount} special = ${store.length} total`);
+  }
+}
+
 function seedMockMessages(
   store: ChatMessage[],
   overlayEmitter: EventEmitter<{ update: (message: ChatMessage | null) => void }>
@@ -351,9 +409,8 @@ function seedMockMessages(
       publishedAt: new Date().toISOString()
     };
     store.push(message);
-    if (store.length > MAX_MESSAGES) {
-      store.splice(0, store.length - MAX_MESSAGES);
-    }
+    // Trim regularly to keep regular messages under control
+    trimMessages(store);
     if (counter % 5 === 0) {
       overlayEmitter.emit('update', message);
     }
@@ -361,7 +418,8 @@ function seedMockMessages(
   }, 2000);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Only run if this is the main module
+if (require.main === module) {
   startBackend().catch((error) => {
     console.error('Failed to start backend', error);
     process.exit(1);
