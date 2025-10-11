@@ -21,7 +21,9 @@
 - [x] Conditional auto-scrolling for chat panels.
 - [x] Timezone-aware timestamp formatting for all messages.
 - [x] Visual selection state management (active, normal, previously-selected).
-- [ ] Add filters/search functionality.
+- [ ] Fix super sticker image not showing.
+- [ ] Add chat leaderboard badge.
+- [ ] Show open polls.
 - [ ] Handle error states (rate limits, disconnects) gracefully in UI.
 
 ## Phase 3 – OBS Overlay Experience
@@ -37,10 +39,10 @@
 ## Phase 4 – Reliability & Polish
 - [x] Implement image proxy with caching to prevent YouTube CDN 429 errors.
 - [x] Implement smart message storage that preserves superchats/memberships.
-- [ ] Refactor the code
 - [ ] Add log-in and unique stream id for each logged in user
+- [ ] Do a security check
+- [ ] Refactor the code
 - [ ] Ensure the deployment.
-- [ ] Expand logging/metrics for long-stream observability.
 - [ ] Write tests (unit/integration) and contributor documentation.
 
 ## Current Status
