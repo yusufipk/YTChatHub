@@ -89,7 +89,7 @@ export default function OverlayPage() {
                     )
                   )}
                 </p>
-              ) : message.text && (
+              ) : message.text && message.text !== 'N/A' && (
                 <p className="overlay__superchat-text">{message.text}</p>
               )}
             </>
@@ -119,7 +119,7 @@ export default function OverlayPage() {
                     )
                   )}
                 </p>
-              ) : message.text && (
+              ) : message.text && message.text !== 'N/A' && (
                 <p className="overlay__membership-text">{message.text}</p>
               )}
             </>
@@ -156,7 +156,7 @@ export default function OverlayPage() {
                     )
                   )}
                 </p>
-              ) : message.text && (
+              ) : message.text && message.text !== 'N/A' && (
                 <p className="overlay__text">{message.text}</p>
               )}
             </>

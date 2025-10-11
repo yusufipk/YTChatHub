@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [memberPulse, setMemberPulse] = useState(false);
   const prevSuperChatCountRef = useRef(0);
   const prevMemberCountRef = useRef(0);
+  const hasInitializedRef = useRef(false);
 
   const handleSelect = useCallback(
     async (message: ChatMessage) => {
@@ -113,13 +114,24 @@ export default function DashboardPage() {
   const newMembers = useMemo(() => messages.filter(m => m.membershipGift || m.membershipGiftPurchase), [messages]);
   const regularMessages = useMemo(() => messages.filter(m => !m.superChat && !m.membershipGift && !m.membershipGiftPurchase), [messages]);
 
+  // Initialize counts on first load without triggering pulse
+  useEffect(() => {
+    if (!hasInitializedRef.current && messages.length > 0) {
+      prevSuperChatCountRef.current = superChats.length;
+      prevMemberCountRef.current = newMembers.length;
+      hasInitializedRef.current = true;
+    }
+  }, [messages.length, superChats.length, newMembers.length]);
+
   // Detect new superchats and trigger pulse
   useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
     const prevCount = prevSuperChatCountRef.current;
     const currentCount = superChats.length;
     
-    // Trigger pulse if count increased (but not on initial mount when both are 0)
-    if (currentCount > prevCount && !(prevCount === 0 && currentCount === 0)) {
+    // Trigger pulse if count increased
+    if (currentCount > prevCount) {
       setSuperChatPulse(true);
       const timer = setTimeout(() => setSuperChatPulse(false), 10000);
       prevSuperChatCountRef.current = currentCount;
@@ -131,11 +143,13 @@ export default function DashboardPage() {
 
   // Detect new members and trigger pulse
   useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
     const prevCount = prevMemberCountRef.current;
     const currentCount = newMembers.length;
     
-    // Trigger pulse if count increased (but not on initial mount when both are 0)
-    if (currentCount > prevCount && !(prevCount === 0 && currentCount === 0)) {
+    // Trigger pulse if count increased
+    if (currentCount > prevCount) {
       setMemberPulse(true);
       const timer = setTimeout(() => setMemberPulse(false), 10000);
       prevMemberCountRef.current = currentCount;
@@ -613,7 +627,7 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProps)
             )
           )}
         </p>
-      ) : message.text && (
+      ) : message.text && message.text !== 'N/A' && (
         <p className="chatItem__text">
           <MessageText text={message.text} onLinkClick={onLinkClick} />
         </p>
@@ -652,7 +666,7 @@ function MemberItem({ message, isSelected, onSelect, onLinkClick }: ChatItemProp
             )
           )}
         </p>
-      ) : message.text && (
+      ) : message.text && message.text !== 'N/A' && (
         <p className="memberItem__text">
           <MessageText text={message.text} onLinkClick={onLinkClick} />
         </p>

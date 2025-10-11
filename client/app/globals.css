@@ -629,7 +629,7 @@ main {
   background: #1f1f1f;
   border: 1px solid #2a2a2a;
   text-align: left;
-  transition: all 150ms ease;
+  transition: all 250ms ease-out;
   cursor: pointer;
   flex-shrink: 0;
   width: 100%;
@@ -647,6 +647,7 @@ main {
   background: rgba(59, 130, 246, 0.15);
   border-color: rgba(59, 130, 246, 0.5);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  filter: brightness(0.85);
 }
 
 .chatItem__header {
@@ -781,7 +782,7 @@ main {
   background: #1f1f1f;
   border: 1px solid #2a2a2a;
   text-align: left;
-  transition: all 150ms ease;
+  transition: all 250ms ease-out;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -796,6 +797,7 @@ main {
   background: rgba(16, 185, 129, 0.15);
   border-color: rgba(16, 185, 129, 0.5);
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  filter: brightness(0.85);
 }
 
 .memberItem__header {
