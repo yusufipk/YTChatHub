@@ -26,7 +26,7 @@ Follow these instructions to set up the project for local development.
 1.  **Clone the repository:**
 
     ```bash
-    https://github.com/yusufipk/YTChatHub
+    git clone https://github.com/yusufipk/YTChatHub
     cd YTChatHub
     ```
 
