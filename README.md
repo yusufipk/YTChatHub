@@ -26,7 +26,7 @@ Follow these instructions to set up the project for local development.
 1.  **Clone the repository:**
 
     ```bash
-    git clone https://github.com/your-username/youtube-client.git
+    git clone https://github.com/yusufipk/youtube-client.git
     cd youtube-client
     ```
 
