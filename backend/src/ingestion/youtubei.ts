@@ -65,9 +65,9 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
 
   liveChat.on('chat-update', (action: any) => {
     // Log the complete raw action data from YouTube (commented out for production)
-    // console.log('=== YOUTUBE RAW MESSAGE DATA ===');
-    // console.log('Action type:', action?.type);
-    // console.log('Complete action object:', JSON.stringify(action, null, 2));
+    console.log('=== YOUTUBE RAW MESSAGE DATA ===');
+    console.log('Action type:', action?.type);
+    console.log('Complete action object:', JSON.stringify(action, null, 2));
     
     const normalized = normalizeAction(action);
     if (normalized) {
@@ -307,10 +307,37 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
     }
   }
 
+  // Extract super sticker image URL if present
+  let stickerUrl: string | undefined;
+  let stickerAlt: string | undefined;
+  
+  if (Array.isArray(item.sticker) && item.sticker.length > 0) {
+    // Prefer larger image (first in array is usually largest)
+    const stickerThumb = item.sticker[0];
+    if (stickerThumb?.url) {
+      // URLs from YouTube might be protocol-relative (//domain.com)
+      // Convert to absolute HTTPS URL
+      let url = String(stickerThumb.url);
+      if (url.startsWith('//')) {
+        url = 'https:' + url;
+      } else if (!url.startsWith('http')) {
+        url = 'https://' + url;
+      }
+      stickerUrl = url;
+    }
+    
+    // Extract accessibility label for alt text
+    if (item.sticker_accessibility_label) {
+      stickerAlt = String(item.sticker_accessibility_label);
+    }
+  }
+
   return {
     amount,
     currency,
-    color
+    color,
+    stickerUrl,
+    stickerAlt
   };
 }
 

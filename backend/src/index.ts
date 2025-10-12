@@ -224,13 +224,18 @@ export async function startBackend() {
       return { error: 'url parameter is required' };
     }
 
-    // Only allow YouTube CDN domains
-    const allowedDomains = ['yt3.ggpht.com', 'yt4.ggpht.com', 'i.ytimg.com'];
+    // Only allow YouTube CDN and Google User Content domains
+    const allowedDomains = [
+      'yt3.ggpht.com', 
+      'yt4.ggpht.com', 
+      'i.ytimg.com',
+      'lh3.googleusercontent.com' // For super stickers
+    ];
     try {
       const urlObj = new URL(url);
       if (!allowedDomains.includes(urlObj.hostname)) {
         reply.status(403);
-        return { error: 'Only YouTube CDN URLs are allowed' };
+        return { error: 'Only YouTube CDN and Google User Content URLs are allowed' };
       }
     } catch (error) {
       reply.status(400);

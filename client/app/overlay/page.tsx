@@ -117,6 +117,19 @@ export default function OverlayPage() {
               ) : displayMessage.text && displayMessage.text !== 'N/A' && (
                 <p className="overlay__superchat-text">{displayMessage.text}</p>
               )}
+              {displayMessage.superChat.stickerUrl && (
+                <div className="overlay__sticker">
+                  <img 
+                    src={proxyImageUrl(displayMessage.superChat.stickerUrl)} 
+                    alt={displayMessage.superChat.stickerAlt || 'Super Sticker'} 
+                    className="overlay__stickerImage"
+                    onError={(e) => {
+                      // Hide image on error
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
             </>
           ) : (displayMessage.membershipGift || displayMessage.membershipGiftPurchase) ? (
             <>

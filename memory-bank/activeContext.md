@@ -29,13 +29,15 @@
 - **Image Proxy**: Added `/proxy/image` endpoint in backend with in-memory caching (24hr TTL, max 1000 images) to prevent YouTube CDN 429 rate limit errors. All avatars, badges, and emojis now route through proxy with stale-on-error fallback.
 - **Message Switching Animation**: Added smooth fade-out/fade-in transitions when switching between selected messages in overlay (300ms duration).
 - **Smart Message Preservation**: Implemented intelligent message trimming - regular chat messages limited to 200, but superchats and memberships preserved for entire session. Trimming happens on every message to prevent loss of special messages.
+- **Super Sticker Support**: Added full support for super sticker image display. Backend parser extracts sticker URL and accessibility label from `item.sticker` array in YouTube data. Added `stickerUrl` and `stickerAlt` fields to `SuperChatInfo` type. Image proxy whitelist updated to include `lh3.googleusercontent.com` domain. Dashboard and overlay both render super stickers with 144x144px max dimensions, centered layout, and graceful error handling that hides broken images. Protocol-relative URLs (`//domain.com`) are automatically converted to HTTPS.
+- **Task Master AI Integration**: Initialized Task Master AI with OpenRouter's x-ai/grok-code-fast-1 model for task management. Successfully completed Task 2 (Super Sticker Display) with 5 subtasks.
 
 ## Immediate Next Steps
-1. Test with live YouTube stream to verify badge parsing and superchat detection
-2. Add search/filter functionality for chat messages
-3. Implement error recovery and reconnection logic for stream interruptions
-4. Add keyboard shortcuts for quick message selection
-5. Consider persistent cache for images (SQLite or file-based) for better reliability
+1. Implement chat leaderboard badge support (Task 3)
+2. Add live poll display functionality (Task 4)
+3. Implement user authentication via YouTube OAuth 2.0 (Task 5)
+4. Consider persistent cache for images (SQLite or file-based) for better reliability
+5. Add error recovery and reconnection logic for stream interruptions
 
 ## Open Questions
 - Whether to add message search/filtering UI controls

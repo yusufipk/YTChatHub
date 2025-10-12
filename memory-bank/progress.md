@@ -21,7 +21,7 @@
 - [x] Conditional auto-scrolling for chat panels.
 - [x] Timezone-aware timestamp formatting for all messages.
 - [x] Visual selection state management (active, normal, previously-selected).
-- [ ] Fix super sticker image not showing.
+- [x] Fix super sticker image not showing.
 - [ ] Add chat leaderboard badge.
 - [ ] Show open polls.
 - [ ] Handle error states (rate limits, disconnects) gracefully in UI.
@@ -55,7 +55,8 @@
 - **✅ Timestamp Resolution Fixed**: Critical bug resolved - timestamps now display correct current time instead of 1970 epoch
 - **✅ Timezone Support**: Dashboard timestamps display in user's local timezone with browser detection and GMT+3 fallback
 - **✅ Visual Selection States**: Three-tier feedback system (active/normal/previously-selected) for better UX
-- **✅ Image Proxy Implemented**: Backend now proxies all YouTube CDN images (avatars, badges, emojis) with 24hr in-memory cache to prevent 429 rate limit errors
+- **✅ Image Proxy Implemented**: Backend now proxies all YouTube CDN images (avatars, badges, emojis, super stickers) with 24hr in-memory cache to prevent 429 rate limit errors. Added lh3.googleusercontent.com domain for super stickers.
 - **✅ Overlay Animations**: Smooth fade-out/in transitions when switching between messages
 - **✅ Smart Storage**: Regular messages limited to 200, superchats and memberships preserved for entire session
-- **Next**: Add search/filter, error recovery, and polish UX details
+- **✅ Super Sticker Support**: Super sticker images now display correctly in both dashboard and overlay with proper error handling and accessibility labels
+- **Next**: Add chat leaderboard badge, show open polls, implement error recovery

@@ -1043,6 +1043,40 @@ main {
   display: inline-block;
 }
 
+/* Super sticker images */
+.chatItem__sticker {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.chatItem__stickerImage {
+  max-width: 144px;
+  max-height: 144px;
+  width: auto;
+  height: auto;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.overlay__sticker {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.overlay__stickerImage {
+  max-width: 144px;
+  max-height: 144px;
+  width: auto;
+  height: auto;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
 /* Message links */
 .message-link {
   color: #60a5fa;

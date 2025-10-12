@@ -651,6 +651,19 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySele
           <MessageText text={message.text} onLinkClick={onLinkClick} />
         </p>
       )}
+      {message.superChat?.stickerUrl && (
+        <div className="chatItem__sticker">
+          <img 
+            src={proxyImageUrl(message.superChat.stickerUrl)} 
+            alt={message.superChat.stickerAlt || 'Super Sticker'} 
+            className="chatItem__stickerImage"
+            onError={(e) => {
+              // Hide image on error
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
     </button>
   );
 }

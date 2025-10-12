@@ -9,6 +9,8 @@ export type SuperChatInfo = {
   amount: string;
   currency: string;
   color: string;
+  stickerUrl?: string; // For super stickers
+  stickerAlt?: string; // Accessibility label for super stickers
 };
 
 export type MessageRun = {
