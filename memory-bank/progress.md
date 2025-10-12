@@ -22,7 +22,7 @@
 - [x] Timezone-aware timestamp formatting for all messages.
 - [x] Visual selection state management (active, normal, previously-selected).
 - [x] Fix super sticker image not showing.
-- [ ] Add chat leaderboard badge.
+- [x] Add chat leaderboard badge.
 - [ ] Show open polls.
 - [ ] Handle error states (rate limits, disconnects) gracefully in UI.
 
@@ -59,4 +59,5 @@
 - **✅ Overlay Animations**: Smooth fade-out/in transitions when switching between messages
 - **✅ Smart Storage**: Regular messages limited to 200, superchats and memberships preserved for entire session
 - **✅ Super Sticker Support**: Super sticker images now display correctly in both dashboard and overlay with proper error handling and accessibility labels
-- **Next**: Add chat leaderboard badge, show open polls, implement error recovery
+- **✅ Leaderboard Badge Support**: YouTube leaderboard ranks (Top Chatter) now display with crown emoji and rank number next to usernames in both dashboard and overlay with golden styling
+- **Next**: Show open polls, implement error recovery, add user authentication
