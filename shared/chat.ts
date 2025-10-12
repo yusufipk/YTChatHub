@@ -19,6 +19,11 @@ export type MessageRun = {
   emojiAlt?: string;
 };
 
+export type Poll = {
+  id: string; // live_chat_poll_id from YouTube
+  active: boolean;
+};
+
 export type ChatMessage = {
   id: string;
   author: string;

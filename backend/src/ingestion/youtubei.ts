@@ -1,4 +1,4 @@
-import type { ChatMessage, Badge, SuperChatInfo } from '@shared/chat';
+import type { ChatMessage, Badge, SuperChatInfo, Poll } from '@shared/chat';
 import EventEmitter from 'eventemitter3';
 import Innertube, { UniversalCache } from 'youtubei.js';
 
@@ -17,6 +17,7 @@ export type ContinuationState = {
 
 export type ChatEventEmitter = EventEmitter<{
   message: (message: ChatMessage) => void;
+  poll: (poll: Poll) => void;
   error: (error: unknown) => void;
 }>;
 
@@ -64,11 +65,21 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
   const emitter: ChatEventEmitter = new EventEmitter();
 
   liveChat.on('chat-update', (action: any) => {
-    // Log the complete raw action data from YouTube (commented out for production)
-    //console.log('=== YOUTUBE RAW MESSAGE DATA ===');
-    //console.log('Action type:', action?.type);
-    //console.log('Complete action object:', JSON.stringify(action, null, 2));
-    
+    // Handle poll updates (just detect active/closed state)
+    if (action?.type === 'UpdateLiveChatPollAction') {
+      const pollId = action?.poll_to_update?.live_chat_poll_id;
+      if (pollId) {
+        emitter.emit('poll', { id: String(pollId), active: true });
+      }
+      return;
+    }
+
+    // Handle poll closing
+    if (action?.type === 'CloseLiveChatActionPanelAction' || action?.type === 'RemoveBannerForLiveChatCommand') {
+      emitter.emit('poll', null);
+      return;
+    }
+
     const normalized = normalizeAction(action);
     if (normalized) {
       emitter.emit('message', normalized);
@@ -77,8 +88,11 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
 
   liveChat.on('error', (err: unknown) => {
     const msg = (err as any)?.message || String(err);
-    if (msg && msg.includes('LiveChatReportModerationStateCommand not found')) {
-      console.warn('[Ingestion] Non-fatal parser drift (ignored):', msg);
+    // Ignore known non-fatal parser drift issues that YouTube.js auto-generates
+    if (msg && (
+      msg.includes('LiveChatReportModerationStateCommand not found') ||
+      msg.includes('CloseLiveChatActionPanelAction not found')
+    )) {
       return; // ignore noisy parser drift that YouTube.js JITs around
     }
     console.error('[Ingestion] Live chat error:', err);

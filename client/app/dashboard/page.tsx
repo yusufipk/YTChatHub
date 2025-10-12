@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import type { ChatMessage } from '@shared/chat';
+import type { ChatMessage, Poll } from '@shared/chat';
 import { useTimezone } from '../../lib/TimezoneContext';
 import { formatTimestamp } from '../../lib/timezone';
 import { proxyImageUrl } from '../../lib/imageProxy';
@@ -46,6 +46,7 @@ let globalConnectionListeners: Set<(payload: any) => void> = new Set();
 export default function DashboardPage() {
   const { messages, refresh, error: pollError } = useChatMessages();
   const { selection, status: overlayStatus } = useOverlaySelection();
+  const { poll: currentPoll } = usePoll();
   const { connected, liveId, connect, disconnect, connecting } = useConnection();
   const [confirmUrl, setConfirmUrl] = useState<string | null>(null);
   const [superChatPulse, setSuperChatPulse] = useState(false);
@@ -198,6 +199,12 @@ export default function DashboardPage() {
       {connected && (
         <>
           <header className="dashboard__tabs">
+            {currentPoll && (
+              <div className="poll-indicator" title="Active poll on YouTube">
+                <span className="poll-indicator__icon">📊</span>
+                <span className="poll-indicator__text">Active Poll</span>
+              </div>
+            )}
             <div className="tab">
               Messages <span className="tab__count">{regularMessages.length}</span>
             </div>
@@ -313,6 +320,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
     </main>
   );
 }
@@ -453,6 +461,38 @@ function useConnection() {
   }, [checkStatus]);
 
   return { connected, liveId, connect, disconnect, connecting };
+}
+
+function usePoll() {
+  const [poll, setPoll] = useState<Poll | null>(null);
+
+  useEffect(() => {
+    // Create SSE connection for polls
+    const eventSource = new EventSource(`${BACKEND_URL}/poll/stream`);
+
+    eventSource.addEventListener('poll', ((event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data);
+        setPoll(payload.poll);
+      } catch (error) {
+        console.error('Failed to parse poll payload', error);
+      }
+    }) as EventListener);
+
+    eventSource.addEventListener('heartbeat', () => {
+      // Heartbeat - connection is alive
+    });
+
+    eventSource.onerror = (error) => {
+      console.error('[Dashboard] Poll SSE connection error', error);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
+  return { poll };
 }
 
 type ConnectionControlProps = {

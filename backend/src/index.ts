@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import EventEmitter from 'eventemitter3';
-import type { ChatMessage } from '@shared/chat';
+import type { ChatMessage, Poll } from '@shared/chat';
 import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei';
 import crypto from 'crypto';
 
@@ -30,7 +30,9 @@ export async function startBackend() {
 
   const store: ChatMessage[] = [];
   let currentSelection: ChatMessage | null = null;
+  let currentPoll: Poll | null = null;
   const overlayEmitter = new EventEmitter<{ update: (message: ChatMessage | null) => void }>();
+  const pollEmitter = new EventEmitter<{ update: (poll: Poll | null) => void }>();
 
   const rawLiveId = process.env.YOUTUBE_LIVE_ID ?? '';
   const parsedLiveId = extractLiveId(rawLiveId);
@@ -49,6 +51,10 @@ export async function startBackend() {
         // Trim regularly to keep regular messages under control
         // This ensures we don't wait until hitting MAX_MESSAGES
         trimMessages(store);
+      });
+      ingestion.emitter.on('poll', (poll) => {
+        currentPoll = poll;
+        pollEmitter.emit('update', poll);
       });
       ingestion.emitter.on('error', (error) => {
         console.error('[Backend] Innertube ingestion error:', error);
@@ -110,14 +116,19 @@ export async function startBackend() {
       console.log(`[Backend] Connecting to YouTube Live ID: ${parsedLiveId}`);
       ingestion = await bootstrapInnertube(parsedLiveId);
       console.log(`[Backend] ✓ YouTube chat connected successfully`);
-      
+
       ingestion.emitter.on('message', (message) => {
         store.push(message);
         // Trim regularly to keep regular messages under control
         // This ensures we don't wait until hitting MAX_MESSAGES
         trimMessages(store);
       });
-      
+
+      ingestion.emitter.on('poll', (poll) => {
+        currentPoll = poll;
+        pollEmitter.emit('update', poll);
+      });
+
       ingestion.emitter.on('error', (error) => {
         console.error('[Backend] Innertube ingestion error:', error);
       });
@@ -157,6 +168,10 @@ export async function startBackend() {
     messages: store
   }));
 
+  fastify.get('/poll/current', async () => ({
+    poll: currentPoll
+  }));
+
   fastify.post<{ Body: { id?: string } }>('/overlay/selection', async (request, reply) => {
     const { id } = request.body ?? {};
     if (!id) {
@@ -180,6 +195,39 @@ export async function startBackend() {
     currentSelection = null;
     overlayEmitter.emit('update', null);
     return { ok: true };
+  });
+
+  fastify.get('/poll/stream', async (request, reply) => {
+    reply.hijack();
+
+    const res = reply.raw;
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.writeHead(200);
+    res.write(': connected\n\n');
+
+    const send = (poll: Poll | null) => {
+      res.write(`event: poll\ndata: ${JSON.stringify({ poll })}\n\n`);
+    };
+
+    const heartbeat = setInterval(() => {
+      res.write('event: heartbeat\ndata: {}\n\n');
+    }, 15000);
+
+    pollEmitter.on('update', send);
+
+    if (currentPoll) {
+      send(currentPoll);
+    }
+
+    request.raw.on('close', () => {
+      clearInterval(heartbeat);
+      pollEmitter.off('update', send);
+    });
   });
 
   fastify.get('/overlay/stream', async (request, reply) => {

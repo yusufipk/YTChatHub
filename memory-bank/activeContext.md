@@ -31,14 +31,14 @@
 - **Smart Message Preservation**: Implemented intelligent message trimming - regular chat messages limited to 200, but superchats and memberships preserved for entire session. Trimming happens on every message to prevent loss of special messages.
 - **Super Sticker Support**: Added full support for super sticker image display. Backend parser extracts sticker URL and accessibility label from `item.sticker` array in YouTube data. Added `stickerUrl` and `stickerAlt` fields to `SuperChatInfo` type. Image proxy whitelist updated to include `lh3.googleusercontent.com` domain. Dashboard and overlay both render super stickers with 144x144px max dimensions, centered layout, and graceful error handling that hides broken images. Protocol-relative URLs (`//domain.com`) are automatically converted to HTTPS.
 - **Leaderboard Badge Support**: Implemented YouTube leaderboard rank display (Top Chatter feature). Backend parser extracts rank from `before_content_buttons` array with CROWN icon, parsing rank number from title field (e.g., "#3"). Added `leaderboardRank` field to `ChatMessage` type. Dashboard and overlay render leaderboard badge with crown emoji (👑) and rank number, styled with golden background (rgba(251, 191, 36, 0.2)) and yellow text (#fcd34d) for prominence.
-- **Task Master AI Integration**: Initialized Task Master AI with OpenRouter's x-ai/grok-code-fast-1 (main), google/gemini-2.5-pro (research), and google/gemini-2.5-flash (fallback) models. Successfully completed Task 2 (Super Sticker Display) and Task 3 (Leaderboard Badge) with all subtasks.
+- **Task Master AI Integration**: Initialized Task Master AI with OpenRouter's x-ai/grok-code-fast-1 (main), google/gemini-2.5-pro (research), and google/gemini-2.5-flash (fallback) models. Successfully completed Task 2 (Super Sticker Display), Task 3 (Leaderboard Badge), and Task 4 (Live Poll Indicator).
+- **Live Poll Indicator**: Added simple poll detection that shows a pulsing "📊 Active Poll" indicator in the dashboard header when a YouTube poll is active. Backend listens for `UpdateLiveChatPollAction` and `CloseLiveChatActionPanelAction`/`RemoveBannerForLiveChatCommand` events. Indicator automatically appears/disappears based on poll state. Note: YouTube's API does not provide live vote percentages, so the feature only indicates poll presence without showing results.
 
 ## Immediate Next Steps
-1. Add live poll display functionality (Task 4)
-2. Implement user authentication via YouTube OAuth 2.0 (Task 5)
-3. Add persistent image cache with SQLite (Task 6)
-4. Consider persistent cache for images (SQLite or file-based) for better reliability
-5. Add error recovery and reconnection logic for stream interruptions
+1. Implement user authentication via YouTube OAuth 2.0 (Task 5)
+2. Add persistent image cache with SQLite (Task 6)
+3. Develop overlay theme controls (Task 7)
+4. Add error recovery and reconnection logic for stream interruptions
 
 ## Open Questions
 - Whether to add message search/filtering UI controls

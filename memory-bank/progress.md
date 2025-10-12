@@ -23,8 +23,7 @@
 - [x] Visual selection state management (active, normal, previously-selected).
 - [x] Fix super sticker image not showing.
 - [x] Add chat leaderboard badge.
-- [ ] Show open polls.
-- [ ] Handle error states (rate limits, disconnects) gracefully in UI.
+- [x] Show active poll indicator.
 
 ## Phase 3 – OBS Overlay Experience
 - [x] Create overlay page that consumes SSE stream at `/overlay`.
@@ -34,7 +33,6 @@
 - [x] Optimize overlay spacing for efficient use (30-40% more compact).
 - [x] Remove timestamps from overlay for cleaner display.
 - [x] Add smooth fade transitions when switching between messages.
-- [ ] Add theme controls and customization options.
 
 ## Phase 4 – Reliability & Polish
 - [x] Implement image proxy with caching to prevent YouTube CDN 429 errors.
@@ -44,6 +42,9 @@
 - [ ] Refactor the code
 - [ ] Ensure the deployment.
 - [ ] Write tests (unit/integration) and contributor documentation.
+
+## Phase 5 - Customization
+- [ ] Add customization options
 
 ## Current Status
 - **✅ YouTube Integration Live**: Backend connects to real YouTube Live chat and parses all message types
@@ -60,4 +61,5 @@
 - **✅ Smart Storage**: Regular messages limited to 200, superchats and memberships preserved for entire session
 - **✅ Super Sticker Support**: Super sticker images now display correctly in both dashboard and overlay with proper error handling and accessibility labels
 - **✅ Leaderboard Badge Support**: YouTube leaderboard ranks (Top Chatter) now display with crown emoji and rank number next to usernames in both dashboard and overlay with golden styling
-- **Next**: Show open polls, implement error recovery, add user authentication
+- **✅ Live Poll Indicator**: Pulsing poll indicator shows in dashboard header when a YouTube poll is active, automatically hides when closed
+- **Next**: Implement user authentication, add persistent image cache, develop overlay theme controls

@@ -1357,3 +1357,36 @@ main {
   background: rgba(248, 113, 113, 0.2);
   color: #f87171;
 }
+
+/* Poll indicator */
+.poll-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #c4b5fd;
+  animation: pollPulse 2s ease-in-out infinite;
+  margin-right: 0.5rem;
+}
+
+.poll-indicator__icon {
+  font-size: 1rem;
+}
+
+.poll-indicator__text {
+  white-space: nowrap;
+}
+
+@keyframes pollPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(139, 92, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+  }
+}
