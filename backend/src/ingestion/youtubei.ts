@@ -65,9 +65,9 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
 
   liveChat.on('chat-update', (action: any) => {
     // Log the complete raw action data from YouTube (commented out for production)
-    console.log('=== YOUTUBE RAW MESSAGE DATA ===');
-    console.log('Action type:', action?.type);
-    console.log('Complete action object:', JSON.stringify(action, null, 2));
+    //console.log('=== YOUTUBE RAW MESSAGE DATA ===');
+    //console.log('Action type:', action?.type);
+    //console.log('Complete action object:', JSON.stringify(action, null, 2));
     
     const normalized = normalizeAction(action);
     if (normalized) {
@@ -231,6 +231,24 @@ function extractBadgesFromHeader(header: any): Badge[] {
   }
 
   return badges;
+}
+
+function extractLeaderboardRank(item: any): number | undefined {
+  // Check for before_content_buttons array (where leaderboard badge appears)
+  if (!Array.isArray(item.before_content_buttons)) return undefined;
+  
+  for (const button of item.before_content_buttons) {
+    // Look for CROWN icon (leaderboard indicator)
+    if (button.icon_name === 'CROWN' && button.title) {
+      // Title is like "#3", "#1", etc.
+      const match = String(button.title).match(/#(\d+)/);
+      if (match && match[1]) {
+        return parseInt(match[1], 10);
+      }
+    }
+  }
+  
+  return undefined;
 }
 
 function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
@@ -439,6 +457,9 @@ function normalizeAction(action: any): ChatMessage | null {
     // Use timestamp_usec (microseconds) as it's more accurate than timestamp (milliseconds)
     const timestampToUse = item.timestamp_usec ?? item.timestamp;
 
+    // Extract leaderboard rank if present
+    const leaderboardRank = extractLeaderboardRank(item);
+    
     return {
       id: String(item.id ?? item.timestamp_usec ?? Date.now()),
       author: authorName,
@@ -455,7 +476,8 @@ function normalizeAction(action: any): ChatMessage | null {
       membershipGift: isMembership,
       membershipGiftPurchase: isGiftPurchase,
       membershipLevel,
-      giftCount
+      giftCount,
+      leaderboardRank
     };
   }
 

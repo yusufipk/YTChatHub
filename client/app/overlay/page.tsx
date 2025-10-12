@@ -170,6 +170,11 @@ export default function OverlayPage() {
                 <div>
                   <div className="overlay__authorLine">
                     <span className="overlay__author">{displayMessage.author}</span>
+                    {displayMessage.leaderboardRank && (
+                      <span className="overlay__badge overlay__badge--leaderboard" title={`#${displayMessage.leaderboardRank} on leaderboard`}>
+                        👑 #{displayMessage.leaderboardRank}
+                      </span>
+                    )}
                     {displayMessage.badges && displayMessage.badges.map((badge, i) => (
                       badge.imageUrl ? (
                         <img key={i} src={proxyImageUrl(badge.imageUrl)} alt={badge.label} className="overlay__badge overlay__badge--image" title={badge.label} />

@@ -36,4 +36,5 @@ export type ChatMessage = {
   membershipGiftPurchase?: boolean;
   membershipLevel?: string; // e.g., "New member", "Member (6 months)", etc.
   giftCount?: number; // Number of memberships gifted
+  leaderboardRank?: number; // YouTube leaderboard rank (1, 2, 3, etc.)
 };

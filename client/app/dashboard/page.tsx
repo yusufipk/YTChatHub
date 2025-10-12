@@ -616,6 +616,11 @@ function ChatItem({ message, isSelected, onSelect, onLinkClick, isPreviouslySele
               <span className="chatItem__membership">{message.membershipLevel}:</span>
             )}
             <span className="chatItem__author">{message.author}</span>
+            {message.leaderboardRank && (
+              <span className="badge badge--leaderboard" title={`#${message.leaderboardRank} on leaderboard`}>
+                👑 #{message.leaderboardRank}
+              </span>
+            )}
             {message.badges && message.badges.map((badge, i) => (
               badge.imageUrl ? (
                 <img key={i} src={proxyImageUrl(badge.imageUrl)} alt={badge.label} className="badge badge--image" title={badge.label} />
