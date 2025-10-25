@@ -23,6 +23,22 @@ export type ChatEventEmitter = EventEmitter<{
 
 const defaultTimeout = 1500;
 
+// Track message IDs to ensure uniqueness
+const seenIds = new Map<string, number>();
+
+function generateUniqueId(baseId: string): string {
+  const count = seenIds.get(baseId) ?? 0;
+  seenIds.set(baseId, count + 1);
+
+  // If this is the first occurrence of this ID, return it as-is
+  if (count === 0) {
+    return baseId;
+  }
+
+  // Otherwise, append a counter suffix to ensure uniqueness
+  return `${baseId}#${count}`;
+}
+
 function resolveMessageRuns(item: any) {
   const runs: { text?: string; emojiUrl?: string; emojiAlt?: string }[] = [];
   const rawRuns = item?.message?.runs;
@@ -473,9 +489,14 @@ function normalizeAction(action: any): ChatMessage | null {
 
     // Extract leaderboard rank if present
     const leaderboardRank = extractLeaderboardRank(item);
-    
+
+    // Generate a unique ID - YouTube message IDs might not be unique in high-frequency chats
+    // so we track seen IDs and append a counter if needed
+    const baseId = String(item.id ?? item.timestamp_usec ?? Date.now());
+    const uniqueId = generateUniqueId(baseId);
+
     return {
-      id: String(item.id ?? item.timestamp_usec ?? Date.now()),
+      id: uniqueId,
       author: authorName,
       authorPhoto,
       authorChannelId: authorChannelId ? String(authorChannelId) : undefined,
