@@ -27,6 +27,7 @@ node_modules/
 *.njsproj
 *.sln
 *.sw?
+.codellm
 # OS specific
 
 # Task files and project management

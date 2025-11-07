@@ -441,10 +441,6 @@ function trimMessages(store: ChatMessage[]): void {
     // Replace store contents
     store.length = 0;
     store.push(...newStore);
-    
-    const newRegularCount = regularCount - toRemove;
-    const specialCount = specialIndices.length;
-    console.log(`[Backend] Trimmed ${toRemove} regular messages. Now: ${newRegularCount} regular + ${specialCount} special = ${store.length} total`);
   }
 }
 
