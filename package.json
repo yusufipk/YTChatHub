@@ -1,40 +1,39 @@
 {
   "name": "youtube-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "High-performance YouTube Live chat client for streamers.",
+  "description": "YouTube Live chat client for streamers with an OBS overlay.",
   "license": "MIT",
   "packageManager": "pnpm@8.15.4",
   "scripts": {
-    "dev": "concurrently \"pnpm dev:backend\" \"pnpm dev:client\"",
-    "dev:backend": "tsx backend/src/index.ts",
-    "dev:client": "next dev client",
-    "build": "pnpm build:backend && pnpm build:client",
+    "dev": "concurrently -n backend,client -c blue,magenta \"pnpm dev:backend\" \"pnpm dev:client\"",
+    "dev:backend": "tsx watch backend/src/index.ts",
+    "dev:client": "NEXT_PUBLIC_BACKEND_URL=http://localhost:4100 next dev client -p 3100",
+    "build": "pnpm build:client && pnpm build:backend",
     "build:backend": "tsc -p backend/tsconfig.build.json",
     "build:client": "next build client",
-    "start": "concurrently \"pnpm start:backend\" \"pnpm start:client\"",
-    "start:backend": "node backend/dist/backend/src/index.js",
-    "start:client": "next start client",
-    "lint": "next lint client"
+    "start": "node backend/dist/backend/src/index.js",
+    "lint": "next lint client",
+    "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit",
+    "test": "tsx --test backend/src/**/*.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
-    "better-sqlite3": "^12.4.1",
+    "@fastify/static": "^8.2.0",
     "eventemitter3": "^5.0.1",
     "fastify": "^5.6.1",
+    "lucide-react": "^0.544.0",
     "next": "^15.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "youtubei.js": "^15.1.1",
-    "zod": "^4.1.11"
+    "youtubei.js": "^15.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.16.5",
     "@types/react": "19.2.0",
-    "autoprefixer": "^10.4.21",
     "concurrently": "^8.2.2",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.14",
+    "eslint": "^9.36.0",
+    "eslint-config-next": "^15.5.4",
     "tsx": "^4.19.1",
     "typescript": "^5.9.3"
   }

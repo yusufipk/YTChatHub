@@ -1,473 +1,291 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import EventEmitter from 'eventemitter3';
-import type { ChatMessage, Poll } from '@shared/chat';
+import { existsSync } from 'fs';
+import type { OutgoingHttpHeaders, ServerResponse } from 'http';
+import path from 'path';
+import type { ChatMessage, ConnectionStatus, Poll, ServerEvent } from '@shared/chat';
 import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei';
-import crypto from 'crypto';
+import { registerImageProxy } from './imageProxy';
+import { extractLiveId } from './liveId';
 
-const MAX_MESSAGES = 500;
-const MAX_REGULAR_MESSAGES = 200; // Keep fewer regular messages
+const MAX_REGULAR_MESSAGES = 200;
+const MAX_SPECIAL_MESSAGES = 500;
+const RETRY_LIMIT = 30;
+const RETRY_BASE_MS = 2000;
+const RETRY_CAP_MS = 30_000;
+const HEARTBEAT_MS = 15_000;
+const CORS_ORIGINS = ['http://localhost:3100', 'http://127.0.0.1:3100'];
 
-// Simple in-memory cache for images
-const imageCache = new Map<string, { buffer: Buffer; contentType: string; timestamp: number }>();
-const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
-const MAX_CACHE_SIZE = 1000; // Maximum number of cached images
+type Bus = EventEmitter<{ event: (event: ServerEvent) => void }>;
+
+const isSpecial = (m: ChatMessage) => !!(m.superChat || m.membershipGift || m.membershipGiftPurchase);
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Drops the oldest messages of each class past its cap, in place, without allocating. */
+function trimMessages(store: ChatMessage[]): void {
+  let regular = 0;
+  let special = 0;
+  for (const m of store) isSpecial(m) ? special++ : regular++;
+  let dropRegular = Math.max(0, regular - MAX_REGULAR_MESSAGES);
+  let dropSpecial = Math.max(0, special - MAX_SPECIAL_MESSAGES);
+  if (!dropRegular && !dropSpecial) return;
+
+  let write = 0;
+  for (const m of store) {
+    if (isSpecial(m) ? dropSpecial > 0 : dropRegular > 0) {
+      isSpecial(m) ? dropSpecial-- : dropRegular--;
+      continue;
+    }
+    store[write++] = m;
+  }
+  store.length = write;
+}
+
+function writeEvent(res: ServerResponse, event: ServerEvent): void {
+  res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+}
 
 export async function startBackend() {
-  const fastify = Fastify({
-    logger: {
-      level: 'warn', // Only show warnings and errors, not every request
-    }
-  });
-
-  // Register CORS before any routes
-  await fastify.register(cors, {
-    origin: '*',
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: false
-  });
+  const fastify = Fastify({ logger: { level: 'warn' } });
+  await fastify.register(cors, { origin: CORS_ORIGINS, methods: ['GET', 'POST', 'DELETE', 'OPTIONS'] });
 
   const store: ChatMessage[] = [];
-  let currentSelection: ChatMessage | null = null;
-  let currentPoll: Poll | null = null;
-  const overlayEmitter = new EventEmitter<{ update: (message: ChatMessage | null) => void }>();
-  const pollEmitter = new EventEmitter<{ update: (poll: Poll | null) => void }>();
-
-  const rawLiveId = process.env.YOUTUBE_LIVE_ID ?? '';
-  const parsedLiveId = extractLiveId(rawLiveId);
-  const shouldMock = !parsedLiveId;
-
+  const bus: Bus = new EventEmitter();
+  const mockEnabled = process.env.MOCK_CHAT === '1';
+  let selection: ChatMessage | null = null;
+  let poll: Poll | null = null;
+  let status: ConnectionStatus = { state: 'disconnected', liveId: null, title: null, error: null };
   let ingestion: IngestionContext | null = null;
-  let mockInterval: NodeJS.Timeout | null = null;
+  let retryTimer: NodeJS.Timeout | null = null;
+  let mockTimer: NodeJS.Timeout | null = null;
+  // Bumped whenever the active connection changes so a bootstrap that resolves late is discarded.
+  let generation = 0;
 
-  if (!shouldMock) {
-    try {
-      console.log(`[Backend] Connecting to YouTube Live ID: ${parsedLiveId}`);
-      ingestion = await bootstrapInnertube(parsedLiveId);
-      console.log(`[Backend] ✓ YouTube chat connected successfully`);
-      ingestion.emitter.on('message', (message) => {
-        store.push(message);
-        // Trim regularly to keep regular messages under control
-        // This ensures we don't wait until hitting MAX_MESSAGES
-        trimMessages(store);
-      });
-      ingestion.emitter.on('poll', (poll) => {
-        currentPoll = poll;
-        pollEmitter.emit('update', poll);
-      });
-      ingestion.emitter.on('error', (error) => {
-        console.error('[Backend] Innertube ingestion error:', error);
-      });
-    } catch (error) {
-      console.error('[Backend] Failed to bootstrap Innertube; falling back to mock data:', error);
-    }
-  } else {
-    console.log('[Backend] No YOUTUBE_LIVE_ID found, running in mock mode');
+  const emit = (event: ServerEvent) => bus.emit('event', event);
+
+  function setStatus(patch: Partial<ConnectionStatus>) {
+    status = { ...status, ...patch };
+    emit({ type: 'status', status });
   }
 
-  if (!ingestion) {
-    mockInterval = seedMockMessages(store, overlayEmitter);
+  function pushMessage(message: ChatMessage) {
+    store.push(message);
+    trimMessages(store);
+    emit({ type: 'message', message });
+  }
+
+  function setSelection(message: ChatMessage | null) {
+    selection = message;
+    emit({ type: 'selection', message });
+  }
+
+  function setPoll(next: Poll | null) {
+    poll = next;
+    emit({ type: 'poll', poll: next });
+  }
+
+  function clearStore() {
+    store.length = 0;
+    emit({ type: 'clear' });
+    if (selection) setSelection(null);
+    if (poll) setPoll(null);
+  }
+
+  function startMock() {
+    if (mockTimer || !mockEnabled) return;
+    console.log('[Backend] MOCK_CHAT=1, generating mock messages');
+    const authors = ['Ada', 'Linus', 'Grace', 'Marge'];
+    let counter = 0;
+    mockTimer = setInterval(() => {
+      pushMessage({
+        id: `mock-${Date.now()}`,
+        author: authors[counter % authors.length],
+        text: `Mock message #${counter}`,
+        publishedAt: new Date().toISOString()
+      });
+      counter += 1;
+    }, 2000);
+  }
+
+  function stopMock() {
+    if (!mockTimer) return;
+    clearInterval(mockTimer);
+    mockTimer = null;
+  }
+
+  // Stops the live chat and any pending retry; the old connection's listeners are dropped.
+  function detach() {
+    generation += 1;
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    if (ingestion) {
+      ingestion.emitter.removeAllListeners();
+      try {
+        ingestion.liveChat?.stop?.();
+      } catch (error) {
+        console.error('[Backend] Error stopping live chat:', error);
+      }
+      ingestion = null;
+    }
+  }
+
+  function idle(patch: Partial<ConnectionStatus>) {
+    setStatus({ state: 'disconnected', ...patch });
+    startMock();
+  }
+
+  function scheduleRetry(liveId: string, attempt: number, reason: string) {
+    detach();
+    if (attempt > RETRY_LIMIT) {
+      console.error(`[Backend] Giving up on ${liveId} after ${RETRY_LIMIT} attempts: ${reason}`);
+      idle({ error: `Gave up after ${RETRY_LIMIT} reconnect attempts: ${reason}` });
+      return;
+    }
+    const delay = Math.min(RETRY_BASE_MS * 2 ** (attempt - 1), RETRY_CAP_MS);
+    console.warn(`[Backend] Connection lost (${reason}); retry ${attempt}/${RETRY_LIMIT} in ${delay}ms`);
+    setStatus({ state: 'reconnecting', error: reason });
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      void connect(liveId, attempt);
+    }, delay);
+  }
+
+  async function connect(liveId: string, attempt = 0): Promise<boolean> {
+    stopMock();
+    const gen = ++generation;
+    if (attempt === 0) setStatus({ state: 'connecting', liveId, title: null, error: null });
+
+    let ctx: IngestionContext;
+    try {
+      ctx = await bootstrapInnertube(liveId);
+    } catch (error) {
+      if (gen !== generation) return false;
+      const reason = errorText(error);
+      console.error(`[Backend] Failed to connect to ${liveId}: ${reason}`);
+      if (attempt === 0) idle({ error: reason });
+      else scheduleRetry(liveId, attempt + 1, reason);
+      return false;
+    }
+    if (gen !== generation) {
+      ctx.liveChat.stop();
+      return false;
+    }
+
+    ingestion = ctx;
+    ctx.emitter.on('message', pushMessage);
+    ctx.emitter.on('poll', setPoll);
+    // youtubei.js retries a failed poll itself, 10 times 2s apart, and emits `end` when it gives up; only then rebuild the session.
+    ctx.emitter.on('end', () => scheduleRetry(liveId, 1, 'live chat ended'));
+    ctx.emitter.on('error', (error) => console.warn(`[Backend] Live chat poll error, library will retry: ${errorText(error)}`));
+    setStatus({ state: 'live', liveId, title: ctx.title, error: null });
+    console.log(`[Backend] Connected to ${liveId}${ctx.title ? ` (${ctx.title})` : ''}`);
+    return true;
   }
 
   fastify.get('/health', async () => ({
     status: 'ok',
+    connection: status,
     messages: store.length,
-    selection: currentSelection?.id ?? null,
-    mode: ingestion ? 'live' : 'mock',
-    connected: !!ingestion,
-    liveId: ingestion?.videoId ?? null
+    selection: selection?.id ?? null,
+    mock: mockTimer !== null
   }));
 
-  fastify.post<{ Body: { liveId: string } }>('/chat/connect', async (request, reply) => {
-    const { liveId } = request.body ?? {};
+  fastify.post<{ Body: { liveId?: string } }>('/chat/connect', async (request, reply) => {
+    const liveId = extractLiveId(request.body?.liveId);
     if (!liveId) {
-      reply.status(400);
-      return { error: 'liveId is required' };
-    }
-
-    const parsedLiveId = extractLiveId(liveId);
-    if (!parsedLiveId) {
       reply.status(400);
       return { error: 'Invalid YouTube Live ID or URL' };
     }
-
-    // Stop mock messages if running
-    if (mockInterval) {
-      clearInterval(mockInterval);
-      mockInterval = null;
-      console.log('[Backend] Stopped mock messages');
-    }
-
-    // Stop existing ingestion if any
-    if (ingestion) {
-      try {
-        ingestion.liveChat?.stop?.();
-      } catch (e) {
-        console.error('[Backend] Error stopping previous connection:', e);
-      }
-      ingestion = null;
-    }
-
-    // Clear messages
-    store.length = 0;
-
-    try {
-      console.log(`[Backend] Connecting to YouTube Live ID: ${parsedLiveId}`);
-      ingestion = await bootstrapInnertube(parsedLiveId);
-      console.log(`[Backend] ✓ YouTube chat connected successfully`);
-
-      ingestion.emitter.on('message', (message) => {
-        store.push(message);
-        // Trim regularly to keep regular messages under control
-        // This ensures we don't wait until hitting MAX_MESSAGES
-        trimMessages(store);
-      });
-
-      ingestion.emitter.on('poll', (poll) => {
-        currentPoll = poll;
-        pollEmitter.emit('update', poll);
-      });
-
-      ingestion.emitter.on('error', (error) => {
-        console.error('[Backend] Innertube ingestion error:', error);
-      });
-
-      return { ok: true, liveId: parsedLiveId };
-    } catch (error) {
-      console.error('[Backend] Failed to connect:', error);
+    detach();
+    clearStore();
+    if (!(await connect(liveId))) {
       reply.status(500);
-      return { error: 'Failed to connect to YouTube Live chat' };
+      return { error: status.error ?? 'Failed to connect to YouTube Live chat' };
     }
+    return { ok: true, liveId, title: status.title ?? null };
   });
 
   fastify.post('/chat/disconnect', async () => {
-    if (ingestion) {
-      try {
-        ingestion.liveChat?.stop?.();
-        console.log('[Backend] Disconnected from YouTube chat');
-      } catch (e) {
-        console.error('[Backend] Error disconnecting:', e);
-      }
-      ingestion = null;
-    }
-    
-    // Start mock messages again
-    if (!mockInterval) {
-      mockInterval = seedMockMessages(store, overlayEmitter);
-      console.log('[Backend] Started mock messages');
-    }
-    
-    store.length = 0;
-    currentSelection = null;
-    overlayEmitter.emit('update', null);
+    detach();
+    clearStore();
+    idle({ liveId: null, title: null, error: null });
     return { ok: true };
   });
 
-  fastify.get('/chat/messages', async () => ({
-    messages: store
-  }));
-
-  fastify.get('/poll/current', async () => ({
-    poll: currentPoll
-  }));
+  fastify.get('/chat/messages', async () => ({ messages: store }));
 
   fastify.post<{ Body: { id?: string } }>('/overlay/selection', async (request, reply) => {
-    const { id } = request.body ?? {};
+    const id = request.body?.id;
     if (!id) {
       reply.status(400);
       return { error: 'id is required' };
     }
-
     const message = store.find((item) => item.id === id);
     if (!message) {
       reply.status(404);
       return { error: 'message not found' };
     }
-
-    currentSelection = message;
-    overlayEmitter.emit('update', currentSelection);
-
+    setSelection(message);
     return { ok: true };
   });
 
   fastify.delete('/overlay/selection', async () => {
-    currentSelection = null;
-    overlayEmitter.emit('update', null);
+    setSelection(null);
     return { ok: true };
   });
 
-  fastify.get('/poll/stream', async (request, reply) => {
+  fastify.get('/events', (request, reply) => {
     reply.hijack();
-
     const res = reply.raw;
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.writeHead(200);
-    res.write(': connected\n\n');
+    // Headers set by hooks (CORS) are not flushed on a hijacked reply, so copy them.
+    res.writeHead(200, {
+      ...(reply.getHeaders() as OutgoingHttpHeaders),
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive'
+    });
+    writeEvent(res, { type: 'init', status, messages: store, selection, poll });
 
-    const send = (poll: Poll | null) => {
-      res.write(`event: poll\ndata: ${JSON.stringify({ poll })}\n\n`);
-    };
-
-    const heartbeat = setInterval(() => {
-      res.write('event: heartbeat\ndata: {}\n\n');
-    }, 15000);
-
-    pollEmitter.on('update', send);
-
-    if (currentPoll) {
-      send(currentPoll);
-    }
-
+    const forward = (event: ServerEvent) => writeEvent(res, event);
+    bus.on('event', forward);
+    const heartbeat = setInterval(() => res.write(': ping\n\n'), HEARTBEAT_MS);
     request.raw.on('close', () => {
       clearInterval(heartbeat);
-      pollEmitter.off('update', send);
+      bus.off('event', forward);
     });
   });
 
-  fastify.get('/overlay/stream', async (request, reply) => {
-    reply.hijack();
+  registerImageProxy(fastify);
 
-    const res = reply.raw;
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.writeHead(200);
-    res.write(': connected\n\n');
+  // Production serves the exported Next.js client; in dev the client runs on its own port.
+  const clientDir = path.resolve(process.cwd(), 'client/out');
+  if (existsSync(clientDir)) {
+    await fastify.register(fastifyStatic, { root: clientDir, index: ['index.html'], redirect: true });
+    fastify.get('/', (_request, reply) => reply.redirect('/dashboard/'));
+    console.log(`[Backend] Serving client from ${clientDir}`);
+  } else {
+    console.log('[Backend] client/out not found, serving API only');
+  }
 
-    const send = (message: ChatMessage | null) => {
-      res.write(`event: selection\ndata: ${JSON.stringify({ message })}\n\n`);
-    };
-
-    const heartbeat = setInterval(() => {
-      res.write('event: heartbeat\ndata: {}\n\n');
-    }, 15000);
-
-    overlayEmitter.on('update', send);
-
-    if (currentSelection) {
-      send(currentSelection);
-    }
-
-    request.raw.on('close', () => {
-      clearInterval(heartbeat);
-      overlayEmitter.off('update', send);
-    });
-  });
-
-  // Image proxy endpoint to avoid YouTube CDN rate limits
-  fastify.get<{ Querystring: { url: string } }>('/proxy/image', async (request, reply) => {
-    const { url } = request.query;
-    
-    if (!url || typeof url !== 'string') {
-      reply.status(400);
-      return { error: 'url parameter is required' };
-    }
-
-    // Only allow YouTube CDN and Google User Content domains
-    const allowedDomains = [
-      'yt3.ggpht.com', 
-      'yt4.ggpht.com', 
-      'i.ytimg.com',
-      'lh3.googleusercontent.com' // For super stickers
-    ];
-    try {
-      const urlObj = new URL(url);
-      if (!allowedDomains.includes(urlObj.hostname)) {
-        reply.status(403);
-        return { error: 'Only YouTube CDN and Google User Content URLs are allowed' };
-      }
-    } catch (error) {
-      reply.status(400);
-      return { error: 'Invalid URL' };
-    }
-
-    // Create cache key from URL
-    const cacheKey = crypto.createHash('md5').update(url).digest('hex');
-    
-    // Check cache
-    const cached = imageCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-      reply.header('Content-Type', cached.contentType);
-      reply.header('Cache-Control', 'public, max-age=86400'); // 24 hours
-      reply.header('Access-Control-Allow-Origin', '*');
-      return reply.send(cached.buffer);
-    }
-
-    // Fetch from YouTube
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Referer': 'https://www.youtube.com/',
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          console.warn('[Backend] Rate limited by YouTube CDN for:', url);
-          // Return from cache even if expired, or return error
-          if (cached) {
-            reply.header('Content-Type', cached.contentType);
-            reply.header('Cache-Control', 'public, max-age=86400');
-            reply.header('Access-Control-Allow-Origin', '*');
-            return reply.send(cached.buffer);
-          }
-        }
-        throw new Error(`Failed to fetch image: ${response.status}`);
-      }
-
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const contentType = response.headers.get('content-type') || 'image/jpeg';
-
-      // Cache the image
-      imageCache.set(cacheKey, {
-        buffer,
-        contentType,
-        timestamp: Date.now()
-      });
-
-      // Cleanup old cache entries if we exceed max size
-      if (imageCache.size > MAX_CACHE_SIZE) {
-        const entries = Array.from(imageCache.entries());
-        entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-        const toDelete = entries.slice(0, Math.floor(MAX_CACHE_SIZE * 0.2)); // Remove oldest 20%
-        toDelete.forEach(([key]) => imageCache.delete(key));
-      }
-
-      reply.header('Content-Type', contentType);
-      reply.header('Cache-Control', 'public, max-age=86400');
-      reply.header('Access-Control-Allow-Origin', '*');
-      return reply.send(buffer);
-    } catch (error) {
-      console.error('[Backend] Failed to proxy image:', error);
-      
-      // Try to return stale cache if available
-      if (cached) {
-        reply.header('Content-Type', cached.contentType);
-        reply.header('Cache-Control', 'public, max-age=86400');
-        reply.header('Access-Control-Allow-Origin', '*');
-        return reply.send(cached.buffer);
-      }
-      
-      reply.status(500);
-      return { error: 'Failed to fetch image' };
-    }
-  });
-
+  const host = process.env.HOST ?? '127.0.0.1';
   const port = Number(process.env.PORT ?? 4100);
+  await fastify.listen({ port, host });
+  console.log(`[Backend] Listening on http://${host}:${port}`);
 
-  await fastify.listen({ port, host: '0.0.0.0' });
-
-  console.log(`[Backend] Server listening on http://localhost:${port}`);
-}
-
-function extractLiveId(input: string): string {
-  if (!input) return '';
-
-  const trimmed = input.trim();
-  if (/^[a-zA-Z0-9_-]{10,}$/.test(trimmed)) {
-    return trimmed;
-  }
-
-  try {
-    const url = new URL(trimmed);
-    if (url.searchParams.has('v')) {
-      return url.searchParams.get('v') ?? '';
-    }
-    const pathname = url.pathname.split('/').filter(Boolean).pop();
-    return pathname ?? '';
-  } catch (error) {
-    console.warn('Invalid YOUTUBE_LIVE_ID provided', error);
-    return '';
+  const envLiveId = extractLiveId(process.env.YOUTUBE_LIVE_ID);
+  if (envLiveId) {
+    // Attempt 1 rather than 0 so a failed startup connect goes through the retry schedule instead of giving up.
+    void connect(envLiveId, 1);
+  } else {
+    if (process.env.YOUTUBE_LIVE_ID) console.warn('[Backend] Ignoring invalid YOUTUBE_LIVE_ID');
+    startMock();
   }
 }
 
-/**
- * Intelligently trim messages while preserving superchats and memberships
- * Regular messages are limited to MAX_REGULAR_MESSAGES
- * Superchats and memberships are preserved for the entire session
- */
-function trimMessages(store: ChatMessage[]): void {
-  // Count messages by type
-  let regularCount = 0;
-  const specialIndices: number[] = [];
-  
-  for (let i = 0; i < store.length; i++) {
-    const message = store[i];
-    const isSpecial = message.superChat || message.membershipGift || 
-                     message.membershipGiftPurchase || message.isMember;
-    if (isSpecial) {
-      specialIndices.push(i);
-    } else {
-      regularCount++;
-    }
-  }
-  
-  // Only trim if we have too many regular messages
-  if (regularCount > MAX_REGULAR_MESSAGES) {
-    const toRemove = regularCount - MAX_REGULAR_MESSAGES;
-    const specialSet = new Set(specialIndices);
-    
-    // Remove oldest regular messages (keep special messages)
-    let removed = 0;
-    const newStore: ChatMessage[] = [];
-    
-    for (let i = 0; i < store.length; i++) {
-      const isSpecial = specialSet.has(i);
-      
-      if (isSpecial) {
-        // Always keep special messages
-        newStore.push(store[i]);
-      } else {
-        // Keep regular messages if we haven't removed enough yet
-        if (removed < toRemove) {
-          removed++;
-          // Skip this message (delete it)
-        } else {
-          newStore.push(store[i]);
-        }
-      }
-    }
-    
-    // Replace store contents
-    store.length = 0;
-    store.push(...newStore);
-  }
-}
-
-function seedMockMessages(
-  store: ChatMessage[],
-  overlayEmitter: EventEmitter<{ update: (message: ChatMessage | null) => void }>
-): NodeJS.Timeout {
-  let counter = 0;
-  const authors = ['Ada', 'Linus', 'Grace', 'Marge'];
-  return setInterval(() => {
-    const message: ChatMessage = {
-      id: `mock-${Date.now()}`,
-      author: authors[counter % authors.length],
-      text: `Mock message #${counter}`,
-      publishedAt: new Date().toISOString()
-    };
-    store.push(message);
-    // Trim regularly to keep regular messages under control
-    trimMessages(store);
-    if (counter % 5 === 0) {
-      overlayEmitter.emit('update', message);
-    }
-    counter += 1;
-  }, 2000);
-}
-
-// Only run if this is the main module
 if (require.main === module) {
   startBackend().catch((error) => {
     console.error('Failed to start backend', error);

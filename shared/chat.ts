@@ -1,26 +1,27 @@
 export type Badge = {
-  type: 'moderator' | 'member' | 'verified' | 'custom';
+  type: 'moderator' | 'member' | 'verified' | 'owner' | 'custom';
   label?: string;
-  icon?: string;
-  imageUrl?: string; // For custom membership badges
+  imageUrl?: string;
 };
 
 export type SuperChatInfo = {
   amount: string;
   currency: string;
   color: string;
-  stickerUrl?: string; // For super stickers
-  stickerAlt?: string; // Accessibility label for super stickers
+  stickerUrl?: string;
+  stickerAlt?: string;
 };
 
 export type MessageRun = {
   text?: string;
+  /** Full destination URL when YouTube rendered this run as a link. The visible text may be truncated. */
+  url?: string;
   emojiUrl?: string;
   emojiAlt?: string;
 };
 
 export type Poll = {
-  id: string; // live_chat_poll_id from YouTube
+  id: string;
   active: boolean;
 };
 
@@ -30,7 +31,7 @@ export type ChatMessage = {
   authorPhoto?: string;
   authorChannelId?: string;
   text: string;
-  runs?: MessageRun[]; // structured runs for emojis
+  runs?: MessageRun[];
   publishedAt: string;
   badges?: Badge[];
   isModerator?: boolean;
@@ -39,7 +40,30 @@ export type ChatMessage = {
   superChat?: SuperChatInfo;
   membershipGift?: boolean;
   membershipGiftPurchase?: boolean;
-  membershipLevel?: string; // e.g., "New member", "Member (6 months)", etc.
-  giftCount?: number; // Number of memberships gifted
-  leaderboardRank?: number; // YouTube leaderboard rank (1, 2, 3, etc.)
+  membershipLevel?: string;
+  giftCount?: number;
+  leaderboardRank?: number;
 };
+
+export type ConnectionState = 'disconnected' | 'connecting' | 'live' | 'reconnecting';
+
+export type ConnectionStatus = {
+  state: ConnectionState;
+  liveId: string | null;
+  title?: string | null;
+  error?: string | null;
+};
+
+/**
+ * Events pushed on the single `/events` SSE stream.
+ * `init` is sent once per connection with the full current state; the rest are deltas.
+ */
+export type ServerEvent =
+  | { type: 'init'; status: ConnectionStatus; messages: ChatMessage[]; selection: ChatMessage | null; poll: Poll | null }
+  | { type: 'message'; message: ChatMessage }
+  | { type: 'selection'; message: ChatMessage | null }
+  | { type: 'poll'; poll: Poll | null }
+  | { type: 'status'; status: ConnectionStatus }
+  | { type: 'clear' };
+
+export type ServerEventType = ServerEvent['type'];

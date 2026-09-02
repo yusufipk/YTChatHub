@@ -1,17 +1,22 @@
 import Link from 'next/link';
+import { LayoutDashboard, MonitorPlay } from 'lucide-react';
 
 export default function HomePage() {
   return (
     <main className="landing">
-      <section className="panel">
-        <h1>YouTube Chat Client</h1>
-        <p>
-          Launch the dashboard to monitor live chat and control the overlay that feeds OBS.
-        </p>
-        <Link className="primary" href="/dashboard">
-          Open Dashboard
-        </Link>
-        <p className="muted">Overlay preview lives at /overlay for the OBS browser source.</p>
+      <section className="landing__card">
+        <h1>YTChatHub</h1>
+        <p>Watch a YouTube Live chat, pick a message, and it appears on your OBS overlay.</p>
+        <div className="landing__links">
+          <Link className="btn btn--primary" href="/dashboard/">
+            <LayoutDashboard size={15} />
+            Open dashboard
+          </Link>
+          <Link className="btn" href="/overlay/">
+            <MonitorPlay size={15} />
+            Overlay for OBS
+          </Link>
+        </div>
       </section>
     </main>
   );

@@ -1,5 +1,4 @@
 node_modules
-pnpm-lock.yaml
 .env.local
 .env
 .DS_Store
@@ -33,3 +32,5 @@ node_modules/
 # Task files and project management
 .taskmaster/
 prd.txt 
+.pnpm-store
+*.tsbuildinfo

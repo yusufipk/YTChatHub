@@ -1,0 +1,5 @@
+root: true
+extends: next/core-web-vitals
+rules:
+  # Images come from the local proxy and the client is a static export; next/image adds nothing here.
+  "@next/next/no-img-element": off

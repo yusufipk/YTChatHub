@@ -1,55 +1,25 @@
-# YouTube Live Chat Client (WIP)
+# YTChatHub
 
-Build a desktop-operated, open-source YouTube Live chat client that delivers a fast, reliable stream of messages and allows a streamer to spotlight a selected chat message on an OBS-ready overlay.
+![Dashboard during a live stream](docs/dashboard.png)
 
-Currently work in progress bugs might be there.
+Open-source YouTube Live chat client for streamers. Watch the chat in a fast dashboard, click a message and it appears on an OBS browser-source overlay. Super Chats, super stickers, memberships, gifted memberships, badges, custom emojis and the chat leaderboard are all shown. Long links in chat arrive with their full URL, not the truncated text YouTube displays.
 
-## Key Features
+## Running it
 
-- **High-Performance Chat**: A sleek, minimal dashboard for monitoring YouTube Live chat in real-time.
-- **OBS Integration**: Select any message to instantly display it on an OBS-ready overlay.
-- **Rich Message Support**: Full support for Super Chats, gifted memberships, and user badges.
-- **Compact and Efficient**: A dark, minimalist UI designed to be space-efficient and easy on the eyes.
-- **Intelligent Auto-Scroll**: The chat automatically scrolls to new messages but stops when you scroll up to read previous messages.
-
-## Getting Started
-
-Follow these instructions to set up the project for local development.
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v20.x or later)
-- [pnpm](https://pnpm.io/)
-
-### Installation
-
-1.  **Clone the repository:**
-
-    ```bash
-    git clone https://github.com/yusufipk/YTChatHub
-    cd YTChatHub
-    ```
-
-2.  **Install dependencies:**
-
-    ```bash
-    pnpm install
-    ```
-
-### Running the Application
-
-To start the development server for both the backend and frontend, run:
+Requires Node.js 20+ and pnpm.
 
 ```bash
-pnpm dev
+pnpm install
+pnpm build
+pnpm start
 ```
 
-- The dashboard will be available at `http://localhost:3000/dashboard`.
-- The OBS overlay will be available at `http://localhost:3000/overlay`.
+Open `http://localhost:4100`, paste the live stream URL or video id, and add the overlay URL from the dashboard's Overlay button as an OBS Browser Source. The overlay's theme, position, size, animation and auto-hide are set in that URL, so different sources can look different.
 
-## Technology Stack
+`pnpm dev` runs the backend on 4100 and the Next.js client on 3100 with hot reload. Optional environment variables: `YOUTUBE_LIVE_ID` connects at startup, `PORT` and `HOST` change where the backend listens (it binds to 127.0.0.1 by default), `MOCK_CHAT=1` generates fake messages when nothing is connected.
 
-- **Frontend**: [Next.js](https://nextjs.org/) (React)
-- **Backend**: [Node.js](https://nodejs.org/) with [Fastify](https://www.fastify.io/) and [tsx](https://github.com/esbuild-kit/tsx)
-- **YouTube Integration**: [youtubei.js](https://github.com/LuanRT/YouTube.js)
-- **Styling**: Handcrafted CSS
+Keyboard: `/` focuses search, `P` pauses the chat, `Esc` clears the overlay.
+
+## Stack
+
+Fastify backend with [youtubei.js](https://github.com/LuanRT/YouTube.js) for chat ingestion, one Server-Sent Events stream for messages, selection and connection status, and a Next.js static export served by the same backend. Chat runs entirely on your machine; YouTube CDN images are proxied and cached locally so OBS never hits rate limits.
