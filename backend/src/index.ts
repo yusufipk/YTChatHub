@@ -3,12 +3,13 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import EventEmitter from 'eventemitter3';
 import { existsSync } from 'fs';
-import type { OutgoingHttpHeaders, ServerResponse } from 'http';
 import path from 'path';
+import { WebSocketServer, type WebSocket } from 'ws';
 import type { ChatMessage, ConnectionStatus, Poll, ServerEvent } from '@shared/chat';
-import { bootstrapInnertube, type IngestionContext } from './ingestion/youtubei';
+import { bootstrapInnertube, fetchLikeCount, type IngestionContext } from './ingestion/youtubei';
 import { registerImageProxy } from './imageProxy';
 import { extractLiveId } from './liveId';
+import { createShow } from './show';
 
 const MAX_REGULAR_MESSAGES = 200;
 const MAX_SPECIAL_MESSAGES = 500;
@@ -16,6 +17,8 @@ const RETRY_LIMIT = 30;
 const RETRY_BASE_MS = 2000;
 const RETRY_CAP_MS = 30_000;
 const HEARTBEAT_MS = 15_000;
+// A client this far behind is not reading; dropping it lets it reconnect and resync from `init`.
+const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const CORS_ORIGINS = ['http://localhost:3100', 'http://127.0.0.1:3100'];
 
 type Bus = EventEmitter<{ event: (event: ServerEvent) => void }>;
@@ -43,13 +46,23 @@ function trimMessages(store: ChatMessage[]): void {
   store.length = write;
 }
 
-function writeEvent(res: ServerResponse, event: ServerEvent): void {
-  res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
-}
-
 export async function startBackend() {
   const fastify = Fastify({ logger: { level: 'warn' } });
   await fastify.register(cors, { origin: CORS_ORIGINS, methods: ['GET', 'POST', 'DELETE', 'OPTIONS'] });
+
+  const host = process.env.HOST ?? '127.0.0.1';
+  const port = Number(process.env.PORT ?? 4100);
+  // A page that rebinds its own hostname to 127.0.0.1 would otherwise get same-origin access to the control routes.
+  // Binding to a non-loopback HOST means the backend is meant to be reached by other names, so the check is skipped then.
+  const loopback = ['127.0.0.1', 'localhost', '::1'].includes(host);
+  const allowedHosts = new Set([`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`]);
+  if (loopback) {
+    fastify.addHook('onRequest', async (request, reply) => {
+      if (!allowedHosts.has(String(request.headers.host ?? '').toLowerCase())) {
+        reply.status(421).send({ error: 'Unexpected Host header' });
+      }
+    });
+  }
 
   const store: ChatMessage[] = [];
   const bus: Bus = new EventEmitter();
@@ -65,6 +78,19 @@ export async function startBackend() {
 
   const emit = (event: ServerEvent) => bus.emit('event', event);
 
+  const show = createShow({
+    dataDir: path.resolve(process.env.SHOW_DATA_DIR ?? path.join(process.cwd(), 'data')),
+    emit: (state) => emit({ type: 'show', show: state }),
+    fetchLikes: async () => {
+      const ctx = ingestion;
+      const gen = generation;
+      if (!ctx) return null;
+      const count = await fetchLikeCount(ctx);
+      // A reconnect while the request was in flight makes the answer belong to the old stream.
+      return gen === generation ? count : null;
+    }
+  });
+
   function setStatus(patch: Partial<ConnectionStatus>) {
     status = { ...status, ...patch };
     emit({ type: 'status', status });
@@ -73,6 +99,7 @@ export async function startBackend() {
   function pushMessage(message: ChatMessage) {
     store.push(message);
     trimMessages(store);
+    show.recordMessage(message);
     emit({ type: 'message', message });
   }
 
@@ -118,6 +145,8 @@ export async function startBackend() {
   // Stops the live chat and any pending retry; the old connection's listeners are dropped.
   function detach() {
     generation += 1;
+    show.stopLikes();
+    show.setViewers(null);
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
@@ -178,10 +207,12 @@ export async function startBackend() {
     ingestion = ctx;
     ctx.emitter.on('message', pushMessage);
     ctx.emitter.on('poll', setPoll);
+    ctx.emitter.on('viewers', (count) => show.setViewers(count));
     // youtubei.js retries a failed poll itself, 10 times 2s apart, and emits `end` when it gives up; only then rebuild the session.
     ctx.emitter.on('end', () => scheduleRetry(liveId, 1, 'live chat ended'));
     ctx.emitter.on('error', (error) => console.warn(`[Backend] Live chat poll error, library will retry: ${errorText(error)}`));
     setStatus({ state: 'live', liveId, title: ctx.title, error: null });
+    show.startLikes(ctx.likeCount);
     console.log(`[Backend] Connected to ${liveId}${ctx.title ? ` (${ctx.title})` : ''}`);
     return true;
   }
@@ -202,6 +233,9 @@ export async function startBackend() {
     }
     detach();
     clearStore();
+    // Stats and credits survive a disconnect, so the end screen can still roll after one; a new stream starts clean.
+    show.resetSession();
+    show.resetOutro();
     if (!(await connect(liveId))) {
       reply.status(500);
       return { error: status.error ?? 'Failed to connect to YouTube Live chat' };
@@ -238,28 +272,56 @@ export async function startBackend() {
     return { ok: true };
   });
 
-  fastify.get('/events', (request, reply) => {
-    reply.hijack();
-    const res = reply.raw;
-    // Headers set by hooks (CORS) are not flushed on a hijacked reply, so copy them.
-    res.writeHead(200, {
-      ...(reply.getHeaders() as OutgoingHttpHeaders),
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive'
-    });
-    writeEvent(res, { type: 'init', status, messages: store, selection, poll });
-
-    const forward = (event: ServerEvent) => writeEvent(res, event);
-    bus.on('event', forward);
-    const heartbeat = setInterval(() => res.write(': ping\n\n'), HEARTBEAT_MS);
-    request.raw.on('close', () => {
-      clearInterval(heartbeat);
-      bus.off('event', forward);
-    });
+  // Events go out over a WebSocket rather than SSE: OBS runs every browser source in one Chromium profile, which
+  // allows only six HTTP/1.1 connections per host, so a seventh SSE source (or a page reload) would hang forever.
+  // WebSockets do not count against that limit. CORS does not apply to them, so the Origin is checked by hand.
+  const allowedOrigins = new Set([...CORS_ORIGINS, ...[...allowedHosts].map((h) => `http://${h}`)]);
+  const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: 1024 });
+  fastify.server.on('upgrade', (request, socket, head) => {
+    // Compared as a string: new URL() throws on targets Node's parser accepts, and a throw here would kill the process.
+    const pathname = (request.url ?? '').split('?')[0];
+    const hostOk = !loopback || allowedHosts.has(String(request.headers.host ?? '').toLowerCase());
+    const origin = request.headers.origin;
+    // Same-origin pages are always fine, which also covers a non-loopback HOST reached by its LAN address.
+    const sameOrigin = origin === `http://${String(request.headers.host ?? '').toLowerCase()}`;
+    if (pathname !== '/ws' || !hostOk || (origin !== undefined && !sameOrigin && !allowedOrigins.has(origin))) {
+      socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+      return;
+    }
+    wss.handleUpgrade(request, socket, head, (ws) => attach(ws));
   });
 
+  function attach(ws: WebSocket) {
+    const send = (event: ServerEvent) => {
+      if (ws.readyState !== ws.OPEN) return;
+      if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+        ws.terminate();
+        return;
+      }
+      ws.send(JSON.stringify(event));
+    };
+    send({ type: 'init', status, messages: store, selection, poll, show: show.snapshot() });
+    bus.on('event', send);
+    let alive = true;
+    ws.on('pong', () => (alive = true));
+    const heartbeat = setInterval(() => {
+      if (!alive) {
+        ws.terminate();
+        return;
+      }
+      alive = false;
+      ws.ping();
+    }, HEARTBEAT_MS);
+    ws.on('close', () => {
+      clearInterval(heartbeat);
+      bus.off('event', send);
+    });
+    ws.on('error', () => ws.terminate());
+  }
+
   registerImageProxy(fastify);
+  show.register(fastify);
+  await show.ready;
 
   // Production serves the exported Next.js client; in dev the client runs on its own port.
   const clientDir = path.resolve(process.cwd(), 'client/out');
@@ -271,8 +333,6 @@ export async function startBackend() {
     console.log('[Backend] client/out not found, serving API only');
   }
 
-  const host = process.env.HOST ?? '127.0.0.1';
-  const port = Number(process.env.PORT ?? 4100);
   await fastify.listen({ port, host });
   console.log(`[Backend] Listening on http://${host}:${port}`);
 

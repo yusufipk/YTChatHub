@@ -7,12 +7,16 @@ export type IngestionContext = {
   liveChat: any;
   videoId: string;
   title: string | null;
+  /** Like count when the chat connected; null when YouTube hides it. */
+  likeCount: number | null;
   emitter: ChatEventEmitter;
 };
 
 export type ChatEventEmitter = EventEmitter<{
   message: (message: ChatMessage) => void;
   poll: (poll: Poll | null) => void;
+  /** Concurrent viewers, from the live chat's metadata updates. */
+  viewers: (count: number | null) => void;
   error: (error: unknown) => void;
   end: () => void;
 }>;
@@ -116,6 +120,7 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
   console.log('[Ingestion] Fetching video info...');
   const info = await client.getInfo(videoId);
   const title = info.basic_info?.title ?? null;
+  const likeCount = readLikeCount(info);
 
   console.log('[Ingestion] Getting live chat...');
   const liveChat = info.getLiveChat();
@@ -154,13 +159,34 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
     emitter.emit('error', err);
   });
 
+  liveChat.on('metadata-update', (metadata: any) => {
+    const views = metadata?.views;
+    // Off air the same field carries the lifetime view count, which must not read as "watching".
+    if (views?.is_live !== true) {
+      emitter.emit('viewers', null);
+      return;
+    }
+    const count = views.original_view_count;
+    if (typeof count === 'number' && Number.isFinite(count) && count >= 0) emitter.emit('viewers', count);
+  });
+
   liveChat.on('end', () => emitter.emit('end'));
 
   console.log('[Ingestion] Starting live chat listener...');
   liveChat.start();
   console.log('[Ingestion] Live chat listener started');
 
-  return { client, liveChat, videoId, title, emitter };
+  return { client, liveChat, videoId, title, likeCount, emitter };
+}
+
+function readLikeCount(info: { basic_info?: { like_count?: number } }): number | null {
+  const count = info.basic_info?.like_count;
+  return typeof count === 'number' && Number.isFinite(count) ? count : null;
+}
+
+/** Reads the current like count. The live chat's metadata updates leave likes empty, so this refetches the watch page data. */
+export async function fetchLikeCount(ctx: IngestionContext): Promise<number | null> {
+  return readLikeCount(await ctx.client.getInfo(ctx.videoId));
 }
 
 function resolveTimestamp(timestamp: number | string | undefined): string {

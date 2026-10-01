@@ -1,3 +1,5 @@
+import type { ShowState } from './show';
+
 export type Badge = {
   type: 'moderator' | 'member' | 'verified' | 'owner' | 'custom';
   label?: string;
@@ -55,15 +57,16 @@ export type ConnectionStatus = {
 };
 
 /**
- * Events pushed on the single `/events` SSE stream.
+ * Events pushed on the single `/ws` WebSocket.
  * `init` is sent once per connection with the full current state; the rest are deltas.
  */
 export type ServerEvent =
-  | { type: 'init'; status: ConnectionStatus; messages: ChatMessage[]; selection: ChatMessage | null; poll: Poll | null }
+  | { type: 'init'; status: ConnectionStatus; messages: ChatMessage[]; selection: ChatMessage | null; poll: Poll | null; show: ShowState }
   | { type: 'message'; message: ChatMessage }
   | { type: 'selection'; message: ChatMessage | null }
   | { type: 'poll'; poll: Poll | null }
   | { type: 'status'; status: ConnectionStatus }
+  | { type: 'show'; show: ShowState }
   | { type: 'clear' };
 
 export type ServerEventType = ServerEvent['type'];

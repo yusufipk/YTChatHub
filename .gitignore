@@ -34,3 +34,7 @@ node_modules/
 prd.txt 
 .pnpm-store
 *.tsbuildinfo
+
+# Show settings and the uploaded sponsor logo
+data/
+__pycache__/

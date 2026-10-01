@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, MonitorPlay, Pause, Play, Search, Unplug } from 'lucide-react';
+import { BarChart3, Clapperboard, MonitorPlay, Pause, Play, Search, Unplug } from 'lucide-react';
 import type { RefObject } from 'react';
 import type { ConnectionStatus, Poll } from '@shared/chat';
 import type { StreamState } from '../lib/useEvents';
@@ -65,6 +65,10 @@ export function TopBar({ status, stream, poll, counts, search, searchRef, onSear
         <button type="button" className={`btn btn--icon ${paused ? 'btn--active' : ''}`} onClick={onTogglePause} title={paused ? 'Resume chat (P)' : 'Pause chat (P)'}>
           {paused ? <Play size={16} /> : <Pause size={16} />}
         </button>
+        <a className="btn" href="/show/" title="Countdown, like goal, sponsor card and end screen">
+          <Clapperboard size={15} />
+          Show
+        </a>
         <button type="button" className="btn" onClick={onOverlaySettings} title="Overlay URL and look">
           <MonitorPlay size={15} />
           Overlay

@@ -1,0 +1,1594 @@
+/*
+ * Show overlays: countdown, like goal, sponsor card, now playing, outro, plus the control page.
+ * Overlays are sized in vw so a 1920×1080 or 3840×2160 browser source renders the same layout.
+ * The countdown sits on the vertical centre line; a portrait source (the vertical canvas) gets its own stacked layout.
+ */
+
+.cd,
+.ou,
+.lg,
+.sp,
+.mu {
+  --cd-bg: #0c0d12;
+  --cd-ink: #eceaf6;
+  --cd-muted: #8e8bab;
+  --cd-lilac: #b9b3f6;
+  --cd-dim: #262a36;
+  --cd-tick: #383d4c;
+  --display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  --text-face: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--text-face);
+  color: var(--cd-ink);
+}
+
+/* ---------- Countdown ---------- */
+
+.cd,
+.ou {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--cd-bg);
+}
+
+.cd__glow {
+  position: absolute;
+  left: 32vw;
+  top: 28.125vw;
+  width: 70vw;
+  height: 70vw;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, rgba(185, 179, 246, 0.13), rgba(185, 179, 246, 0) 70%);
+  transition: left 0.9s cubic-bezier(0.7, 0, 0.2, 1), top 0.9s cubic-bezier(0.7, 0, 0.2, 1), opacity 0.9s ease;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.cd--final .cd__glow,
+.cd--live .cd__glow {
+  left: 50vw;
+  top: 28.125vw;
+  opacity: 1;
+}
+
+.cd__clock {
+  position: absolute;
+  left: 17vw;
+  top: 13.125vw;
+  width: 30vw;
+  height: 30vw;
+  transition: transform 0.9s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+.cd--final .cd__clock,
+.cd--live .cd__clock {
+  transform: translate(18vw, 0) scale(1.18);
+}
+
+.cd__ring {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.cd__track {
+  fill: none;
+  stroke: var(--cd-dim);
+  stroke-width: 3;
+}
+
+.cd__arc {
+  fill: none;
+  stroke: var(--cd-lilac);
+  stroke-width: 5;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+.cd__dot {
+  /* --lit runs 0..1: off dots stay visible as dim slate so the ring keeps its shape. */
+  fill: color-mix(in srgb, var(--cd-lilac) calc(var(--lit) * 100%), var(--cd-dim));
+}
+
+.cd__tick {
+  stroke: var(--cd-tick);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.cd__dots {
+  transform-origin: 0 0;
+}
+
+.cd__dots--pulse {
+  animation: cd-pulse 1s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@keyframes cd-pulse {
+  0% {
+    transform: scale(1.045);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* At zero the ring collapses into the centre and the live line takes its place.
+   A keyframe animation rather than a transition, so it plays even if the group is remounted. */
+.cd--live .cd__dots {
+  animation: cd-collapse 0.75s cubic-bezier(0.6, 0, 0.8, 0.25) both;
+}
+
+@keyframes cd-collapse {
+  0% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0) rotate(120deg);
+    opacity: 0;
+  }
+}
+
+.cd--live .cd__arc,
+.cd--live .cd__track,
+.cd--live .cd__tick {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.cd__digits {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 8.4vw;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cd__digit {
+  display: inline-block;
+  width: 0.56em;
+  text-align: center;
+  animation: cd-roll 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes cd-roll {
+  from {
+    transform: translateY(-0.22em);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.cd__colon {
+  display: inline-block;
+  width: 0.3em;
+  text-align: center;
+  color: var(--cd-muted);
+  transform: translateY(-0.06em);
+}
+
+.cd--final .cd__digits {
+  font-size: 13vw;
+}
+
+.cd--final .cd__digit {
+  width: auto;
+  animation: cd-drop 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes cd-drop {
+  0% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.cd__live {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 6.2vw;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cd--live .cd__live {
+  animation: cd-live 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s both;
+}
+
+@keyframes cd-live {
+  from {
+    opacity: 0;
+    letter-spacing: 0.35em;
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.01em;
+  }
+}
+
+.cd__info {
+  position: absolute;
+  left: 53vw;
+  top: 28.125vw;
+  width: 38vw;
+  transform: translateY(-50%);
+  transition: opacity 0.6s ease, transform 0.9s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+.cd--final .cd__info,
+.cd--live .cd__info {
+  opacity: 0;
+  transform: translate(6vw, -50%);
+}
+
+.cd__title {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 4.6vw;
+  line-height: 0.98;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+}
+
+.cd__topic {
+  margin: 1.1vw 0 0;
+  font-size: 1.55vw;
+  line-height: 1.35;
+  color: var(--cd-ink);
+  opacity: 0.86;
+  text-wrap: pretty;
+}
+
+.cd__when {
+  margin: 2vw 0 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 3vw;
+  color: var(--cd-lilac);
+}
+
+/* Portrait canvas (vertical stream): ring on top, text centred under it. 177.78vw is the full height at 9:16. */
+@media (max-aspect-ratio: 1/1) {
+  .cd__glow {
+    left: 50vw;
+    top: 74vw;
+    width: 120vw;
+    height: 120vw;
+  }
+  .cd--final .cd__glow,
+  .cd--live .cd__glow {
+    top: 88.9vw;
+  }
+  .cd__clock {
+    left: 14vw;
+    top: 38vw;
+    width: 72vw;
+    height: 72vw;
+  }
+  .cd--final .cd__clock,
+  .cd--live .cd__clock {
+    transform: translate(0, 14.9vw) scale(1.12);
+  }
+  .cd__digits {
+    font-size: 20vw;
+  }
+  .cd--final .cd__digits {
+    font-size: 31vw;
+  }
+  .cd__live {
+    font-size: 13vw;
+  }
+  .cd__info {
+    left: 8vw;
+    top: 118vw;
+    width: 84vw;
+    text-align: center;
+    transform: none;
+  }
+  .cd--final .cd__info,
+  .cd--live .cd__info {
+    transform: translateY(6vw);
+  }
+  .cd__title {
+    font-size: 11vw;
+  }
+  .cd__topic {
+    margin-top: 2.4vw;
+    font-size: 4.2vw;
+  }
+  .cd__when {
+    margin-top: 4vw;
+    font-size: 7vw;
+  }
+}
+
+/* The idle state breathes slowly so a frozen frame is never mistaken for a dead source. */
+.cd--idle .cd__dots {
+  animation: cd-breathe 4s ease-in-out infinite;
+}
+
+@keyframes cd-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---------- Like goal ---------- */
+
+.lg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-size: calc(1vw * var(--scale, 1));
+}
+
+.lg__pill {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.5em 1.1em 0.5em 0.75em;
+  border-radius: 999px;
+  background: rgba(31, 34, 43, 0.9);
+  box-shadow: 0 0 0 1px rgba(185, 179, 246, 0.18);
+  white-space: nowrap;
+}
+
+.lg--tl .lg__pill {
+  left: 1.6vw;
+  top: 1.6vw;
+}
+.lg--tr .lg__pill {
+  right: 1.6vw;
+  top: 1.6vw;
+}
+.lg--bl .lg__pill {
+  left: 1.6vw;
+  bottom: 1.6vw;
+}
+.lg--br .lg__pill {
+  right: 1.6vw;
+  bottom: 1.6vw;
+}
+
+/* Vertical canvas: a phone shows the whole frame at hand size, so the pill is scaled up and kept off the edges. */
+@media (max-aspect-ratio: 1/1) {
+  .lg {
+    font-size: calc(2.6vw * var(--scale, 1));
+  }
+  .lg--tl .lg__pill,
+  .lg--bl .lg__pill {
+    left: 4vw;
+  }
+  .lg--tr .lg__pill,
+  .lg--br .lg__pill {
+    right: 4vw;
+  }
+  .lg--tl .lg__pill,
+  .lg--tr .lg__pill {
+    top: 4vw;
+  }
+  .lg--bl .lg__pill,
+  .lg--br .lg__pill {
+    bottom: 4vw;
+  }
+}
+
+.lg__heart {
+  width: 1.7em;
+  height: 1.7em;
+  flex: none;
+}
+
+.lg__heart-line {
+  fill: none;
+  stroke: var(--cd-lilac);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.lg__heart-fill {
+  fill: var(--cd-lilac);
+}
+
+.lg__fillrect {
+  transition: y 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.lg--reached .lg__heart {
+  animation: lg-pop 0.9s cubic-bezier(0.2, 0.8, 0.2, 1.4);
+}
+
+@keyframes lg-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.45);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.lg__text {
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+.lg__count {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.45em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg__goal {
+  color: var(--cd-muted);
+  font-weight: 500;
+}
+
+/* Live viewers share the pill, after a hairline, so a corner holds one element whatever the position. */
+.lg__viewers {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-left: 0.3em;
+  padding-left: 0.9em;
+  border-left: 1px solid rgba(185, 179, 246, 0.22);
+  color: var(--cd-muted);
+  font-size: 1.15em;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.lg__viewcount {
+  color: var(--cd-ink);
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.45em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg__live {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: #ff4d5e;
+  box-shadow: 0 0 0 0.18em rgba(255, 77, 94, 0.22);
+}
+
+.lg__text--thanks {
+  font-weight: 600;
+  animation: lg-in 0.5s ease both;
+}
+
+@keyframes lg-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.3em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Now playing ---------- */
+
+.mu {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-size: calc(1vw * var(--scale, 1));
+}
+
+.mu__card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  max-width: 30em;
+  padding: 0.5em 1.4em 0.5em 0.5em;
+  border-radius: 1.1em;
+  background: rgba(31, 34, 43, 0.92);
+  box-shadow: 0 0 0 1px rgba(185, 179, 246, 0.18), 0 0.6em 1.8em rgba(5, 6, 10, 0.35);
+}
+
+.mu--tl .mu__card {
+  left: 1.6vw;
+  top: 1.6vw;
+}
+.mu--bl .mu__card {
+  left: 1.6vw;
+  bottom: 1.6vw;
+}
+.mu--tr .mu__card,
+.mu--br .mu__card {
+  flex-direction: row-reverse;
+  padding: 0.5em 0.5em 0.5em 1.4em;
+  text-align: right;
+}
+.mu--tr .mu__card {
+  right: 1.6vw;
+  top: 1.6vw;
+}
+.mu--br .mu__card {
+  right: 1.6vw;
+  bottom: 1.6vw;
+}
+
+.mu__card {
+  animation: mu-card 0.5s ease both;
+}
+.mu__card--leaving {
+  animation: mu-card-out 0.6s ease both;
+}
+
+/* The new cover lands on top of the old one, so there is never an empty frame. */
+.mu__art {
+  position: relative;
+  flex: none;
+  width: 4.8em;
+  height: 4.8em;
+}
+
+.mu__cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.7em;
+  object-fit: cover;
+  animation: mu-cover 0.7s cubic-bezier(0.2, 0.8, 0.2, 1.25) both;
+}
+.mu__cover--under {
+  animation: none;
+}
+.mu__cover--blank {
+  box-sizing: border-box;
+  padding: 1.1em;
+  background: var(--cd-dim);
+  fill: none;
+  stroke: var(--cd-lilac);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mu__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  min-width: 0;
+  animation: lg-in 0.5s ease 0.15s both;
+}
+
+.mu__title,
+.mu__name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mu__title {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.9em;
+  line-height: 1.05;
+}
+
+.mu__name {
+  min-width: 0;
+}
+
+.mu__artist {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5em;
+  color: var(--cd-muted);
+  font-size: 1.05em;
+  font-weight: 500;
+}
+.mu--tr .mu__artist,
+.mu--br .mu__artist {
+  flex-direction: row-reverse;
+}
+
+/* Three bars bouncing out of step: reads as "playing" without a label. */
+.mu__eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.14em;
+  flex: none;
+  height: 0.85em;
+}
+.mu__eq i {
+  width: 0.2em;
+  height: 100%;
+  border-radius: 0.1em;
+  background: var(--cd-lilac);
+  transform-origin: bottom;
+  animation: mu-eq 0.9s ease-in-out infinite alternate;
+}
+.mu__eq i:nth-child(2) {
+  animation-duration: 0.7s;
+  animation-delay: -0.3s;
+}
+.mu__eq i:nth-child(3) {
+  animation-duration: 1.1s;
+  animation-delay: -0.6s;
+}
+
+@keyframes mu-eq {
+  from { transform: scaleY(0.25); }
+  to { transform: scaleY(1); }
+}
+@keyframes mu-card {
+  from {
+    opacity: 0;
+    transform: translateY(0.6em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mu-card-out {
+  to {
+    opacity: 0;
+    transform: translateY(0.6em);
+  }
+}
+@keyframes mu-cover {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-10deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Vertical canvas: scaled up for a phone screen like the goal pill and sponsor. */
+@media (max-aspect-ratio: 1/1) {
+  .mu {
+    font-size: calc(2.4vw * var(--scale, 1));
+  }
+  .mu__card {
+    max-width: 38em;
+  }
+  .mu--tl .mu__card,
+  .mu--bl .mu__card {
+    left: 4vw;
+  }
+  .mu--tr .mu__card,
+  .mu--br .mu__card {
+    right: 4vw;
+  }
+  .mu--tl .mu__card,
+  .mu--tr .mu__card {
+    top: 4vw;
+  }
+  .mu--bl .mu__card,
+  .mu--br .mu__card {
+    bottom: 4vw;
+  }
+}
+
+/* ---------- Tux ---------- */
+
+.tux {
+  position: absolute;
+  pointer-events: none;
+}
+
+.tux__svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.tux__svg g,
+.tux__svg ellipse,
+.tux__svg circle {
+  transform-box: view-box;
+}
+
+/* Black on a near-black ground would vanish, so the dark parts are slate with a lilac rim. */
+.tux__dark,
+.tux__flipper ellipse {
+  fill: #20222c;
+  stroke: rgba(185, 179, 246, 0.5);
+  stroke-width: 2.5;
+}
+.tux__belly,
+.tux__white {
+  fill: #f4f2fb;
+}
+.tux__pupils {
+  fill: #0c0d12;
+}
+.tux__beak,
+.tux__foot ellipse {
+  fill: #f5b335;
+}
+.tux__shadow {
+  fill: rgba(0, 0, 0, 0.45);
+}
+.tux__lids {
+  fill: none;
+  stroke: #0c0d12;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  opacity: 0;
+}
+.tux__happy {
+  fill: none;
+  stroke: #f4f2fb;
+  stroke-width: 5;
+  stroke-linecap: round;
+  opacity: 0;
+}
+.tux__mouth {
+  fill: #6b1d2a;
+}
+.tux__laptop {
+  opacity: 0;
+  fill: #c9ccd8;
+}
+.tux__laptop circle {
+  fill: var(--cd-lilac);
+}
+.tux__laptop-base {
+  fill: #9a9eb0;
+}
+.tux__bubble {
+  opacity: 0;
+  transform-origin: 100px 0;
+}
+.tux__bubble rect,
+.tux__bubble path {
+  fill: #f4f2fb;
+}
+.tux__bubble text {
+  fill: #0c0d12;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+.tux__haha {
+  opacity: 0;
+  fill: var(--cd-lilac);
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26px;
+}
+.tux__haha text {
+  opacity: 0;
+}
+.tux__zs {
+  fill: var(--cd-lilac);
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 30px;
+  opacity: 0;
+}
+
+.tux__all {
+  transform-origin: 100px 236px;
+}
+.tux__flipper--l {
+  transform-origin: 50px 112px;
+}
+.tux__flipper--r {
+  transform-origin: 150px 112px;
+}
+.tux__foot--l {
+  transform-origin: 74px 224px;
+}
+.tux__foot--r {
+  transform-origin: 126px 224px;
+}
+.tux__eyes {
+  transform-origin: 100px 66px;
+  animation: tux-blink 4.2s infinite;
+}
+.tux__pupils {
+  transition: transform 0.4s ease;
+}
+/* While Tux.tsx blends into a new action, its animations wait on their first frame. The feet are left
+   running: every foot animation starts at rest, and the shared tux-tap would only freeze mid-step. */
+.tux--blending :is(.tux__svg, .tux__all, .tux__flipper) {
+  animation-play-state: paused !important;
+}
+/* Parts that appear for one action fade instead of popping; transforms are blended in Tux.tsx. */
+.tux__lids,
+.tux__happy,
+.tux__laptop,
+.tux__haha,
+.tux__zs,
+.tux__eyes {
+  transition: opacity 0.35s ease;
+}
+
+@keyframes tux-blink {
+  0%, 94%, 100% { transform: none; }
+  97% { transform: scaleY(0.1); }
+}
+
+/* Swaying to the music: the resting state while the countdown runs. */
+.tux--groove .tux__all {
+  animation: tux-sway 1.2s ease-in-out infinite alternate;
+}
+.tux--groove .tux__foot--l {
+  animation: tux-tap 1.2s ease-in-out infinite;
+}
+.tux--groove .tux__foot--r {
+  animation: tux-tap 1.2s ease-in-out 0.6s infinite;
+}
+@keyframes tux-sway {
+  from { transform: rotate(-4deg); }
+  to { transform: rotate(4deg); }
+}
+@keyframes tux-tap {
+  0%, 60%, 100% { transform: none; }
+  30% { transform: translateY(-5px) rotate(-8deg); }
+}
+
+.tux--wave .tux__flipper--r {
+  animation: tux-wave 0.9s ease-in-out infinite;
+}
+.tux--wave .tux__all {
+  animation: tux-lean 1.8s ease-in-out infinite alternate;
+}
+@keyframes tux-wave {
+  0%, 100% { transform: rotate(-125deg); }
+  50% { transform: rotate(-160deg); }
+}
+@keyframes tux-lean {
+  from { transform: rotate(-3deg); }
+  to { transform: rotate(1deg); }
+}
+
+.tux--jump .tux__all {
+  animation: tux-jump 1.1s cubic-bezier(0.3, 0, 0.3, 1) 2;
+}
+.tux--jump .tux__flipper--l {
+  animation: tux-flap-l 1.1s ease-in-out 2;
+}
+.tux--jump .tux__flipper--r {
+  animation: tux-flap-r 1.1s ease-in-out 2;
+}
+@keyframes tux-jump {
+  0%, 100% { transform: none; }
+  15% { transform: scale(1.08, 0.88); }
+  45% { transform: translateY(-46px) scale(0.95, 1.06); }
+  75% { transform: none; }
+  85% { transform: scale(1.06, 0.92); }
+}
+@keyframes tux-flap-l {
+  0%, 100% { transform: none; }
+  45% { transform: rotate(55deg); }
+}
+@keyframes tux-flap-r {
+  0%, 100% { transform: none; }
+  45% { transform: rotate(-55deg); }
+}
+
+/* A short waddle out and back; the svg carries the walk so the body can rock on its own. */
+.tux--walk .tux__svg {
+  animation: tux-walk 5s ease-in-out;
+}
+.tux--walk .tux__all {
+  animation: tux-waddle 0.45s ease-in-out infinite alternate;
+}
+.tux--walk .tux__foot--l {
+  animation: tux-tap 0.9s ease-in-out infinite;
+}
+.tux--walk .tux__foot--r {
+  animation: tux-tap 0.9s ease-in-out 0.45s infinite;
+}
+@keyframes tux-walk {
+  0%, 100% { transform: none; }
+  45%, 55% { transform: translateX(-55%); }
+}
+@keyframes tux-waddle {
+  from { transform: rotate(-7deg); }
+  to { transform: rotate(7deg); }
+}
+
+.tux--laugh .tux__eyes {
+  animation: none;
+  opacity: 0;
+}
+.tux--laugh .tux__happy {
+  opacity: 1;
+}
+.tux--laugh .tux__mouth {
+  animation: tux-mouth 0.3s ease-in-out infinite alternate;
+}
+.tux--laugh .tux__all {
+  animation: tux-giggle 0.3s ease-in-out infinite alternate;
+}
+.tux--laugh .tux__flipper--l {
+  transform: rotate(35deg);
+}
+.tux--laugh .tux__flipper--r {
+  transform: rotate(-35deg);
+}
+.tux--laugh .tux__haha {
+  opacity: 1;
+}
+.tux--laugh .tux__haha text {
+  animation: tux-z 1.4s ease-out infinite;
+}
+.tux--laugh .tux__haha text:last-child {
+  animation-delay: 0.7s;
+}
+@keyframes tux-mouth {
+  from { ry: 3px; }
+  to { ry: 9px; }
+}
+@keyframes tux-giggle {
+  from { transform: translateY(0) rotate(-2deg); }
+  to { transform: translateY(-5px) rotate(2deg); }
+}
+
+/* Hacking away on a laptop, flippers tapping the keys. */
+.tux--type .tux__laptop {
+  opacity: 1;
+}
+.tux--type .tux__flipper--l {
+  animation: tux-key-l 0.22s ease-in-out infinite alternate;
+}
+.tux--type .tux__flipper--r {
+  animation: tux-key-r 0.22s ease-in-out 0.11s infinite alternate backwards;
+}
+.tux--type .tux__pupils {
+  transform: translateY(5px);
+}
+@keyframes tux-key-l {
+  from { transform: rotate(-38deg); }
+  to { transform: rotate(-48deg) translateY(4px); }
+}
+@keyframes tux-key-r {
+  from { transform: rotate(38deg); }
+  to { transform: rotate(48deg) translateY(4px); }
+}
+
+.tux--say .tux__bubble {
+  animation: tux-bubble 4.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.tux--say .tux__all {
+  animation: tux-hop 0.9s ease-in-out 2;
+}
+.tux--say .tux__flipper--r {
+  animation: tux-say-wave 0.9s ease-in-out 2;
+}
+/* Its own name, so following a wave restarts it instead of inheriting the wave's elapsed time. */
+@keyframes tux-say-wave {
+  0%, 100% { transform: rotate(-125deg); }
+  50% { transform: rotate(-160deg); }
+}
+@keyframes tux-bubble {
+  0% { opacity: 0; transform: scale(0.4); }
+  12%, 85% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: none; }
+}
+
+.tux--dance .tux__all {
+  animation: tux-bounce 0.6s ease-in-out infinite;
+}
+.tux--dance .tux__flipper--l {
+  animation: tux-arm-l 1.2s ease-in-out infinite;
+}
+.tux--dance .tux__flipper--r {
+  animation: tux-arm-r 1.2s ease-in-out infinite;
+}
+.tux--dance .tux__foot--l {
+  animation: tux-tap 0.6s ease-in-out infinite;
+}
+.tux--dance .tux__foot--r {
+  animation: tux-tap 0.6s ease-in-out 0.3s infinite;
+}
+@keyframes tux-bounce {
+  0%, 100% { transform: rotate(-7deg); }
+  25% { transform: translateY(-12px); }
+  50% { transform: rotate(7deg); }
+  75% { transform: translateY(-12px); }
+}
+@keyframes tux-arm-l {
+  0%, 100% { transform: rotate(10deg); }
+  50% { transform: rotate(150deg); }
+}
+@keyframes tux-arm-r {
+  0%, 100% { transform: rotate(-150deg); }
+  50% { transform: rotate(-10deg); }
+}
+
+/* Last ten seconds: eyes on the clock, bouncing on the spot. */
+.tux--look .tux__pupils {
+  transform: translate(var(--tux-look-x, -4px), var(--tux-look-y, -3px));
+}
+.tux--look .tux__all {
+  animation: tux-hop 0.5s ease-in-out infinite;
+}
+@keyframes tux-hop {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-7px); }
+}
+
+.tux--cheer .tux__all {
+  animation: tux-jump 0.8s cubic-bezier(0.3, 0, 0.3, 1) infinite;
+}
+.tux--cheer .tux__flipper--l {
+  transform: rotate(150deg);
+  animation: tux-cheer-l 0.4s ease-in-out infinite alternate;
+}
+.tux--cheer .tux__flipper--r {
+  transform: rotate(-150deg);
+  animation: tux-cheer-r 0.4s ease-in-out infinite alternate;
+}
+@keyframes tux-cheer-l {
+  from { transform: rotate(130deg); }
+  to { transform: rotate(165deg); }
+}
+@keyframes tux-cheer-r {
+  from { transform: rotate(-130deg); }
+  to { transform: rotate(-165deg); }
+}
+
+.tux--sleep .tux__eyes {
+  animation: none;
+  transform: scaleY(0);
+}
+.tux--sleep .tux__lids {
+  opacity: 1;
+}
+.tux--sleep .tux__all {
+  animation: tux-breathe 3.6s ease-in-out infinite;
+}
+.tux--sleep .tux__zs text {
+  animation: tux-z 3.6s ease-out infinite;
+}
+.tux--sleep .tux__zs text:last-child {
+  animation-delay: 1.8s;
+}
+.tux--sleep .tux__zs {
+  opacity: 1;
+}
+.tux__zs text {
+  opacity: 0;
+}
+@keyframes tux-breathe {
+  0%, 100% { transform: none; }
+  50% { transform: scale(1.03, 0.98); }
+}
+@keyframes tux-z {
+  0% { opacity: 0; transform: translate(0, 10px); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(14px, -24px); }
+}
+
+.cd .tux {
+  right: 6vw;
+  bottom: 3vw;
+  width: 14vw;
+}
+
+.ou .tux {
+  position: relative;
+  width: 12vw;
+  margin-top: 4.5vw;
+}
+
+@media (max-aspect-ratio: 1/1) {
+  .cd .tux {
+    right: 8vw;
+    top: 9vw;
+    bottom: auto;
+    width: 21vw;
+    --tux-look-y: 3px;
+  }
+}
+
+/* ---------- Sponsor card ---------- */
+
+/* The logo sits in its corner the whole stream; the QR code slides out beside it on a cycle. */
+.sp {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-size: calc(1vw * var(--scale, 1));
+}
+
+.sp__card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0.6em;
+  border-radius: 0.8em;
+  background: #fff;
+  color: #1d2030;
+  box-shadow: 0 0.5em 1.6em rgba(10, 12, 20, 0.3);
+  animation: sp-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* A logo brings its own ground, so it stands alone and the QR code gets its own white tile beside it. */
+.sp__card--logo {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  align-items: flex-start;
+}
+.sp__card--logo .sp__logo {
+  filter: drop-shadow(0 0.4em 1em rgba(10, 12, 20, 0.35));
+}
+/* Without the white card the caption becomes a white strip as wide as the logo, so it reads on any scene. */
+.sp__card--logo .sp__brand {
+  width: min-content;
+  gap: 0.4em;
+}
+.sp__card--logo .sp__caption {
+  padding: 0.4em 0.8em;
+  border-radius: 0.6em;
+  background: #fff;
+  color: #1d2030;
+  font-size: 1.15em;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 0.4em 1em rgba(10, 12, 20, 0.35);
+}
+
+.sp--tl .sp__card {
+  left: 1.4vw;
+  top: 1.4vw;
+}
+.sp--tr .sp__card {
+  right: 1.4vw;
+  top: 1.4vw;
+  flex-direction: row-reverse;
+}
+.sp--bl .sp__card {
+  left: 1.4vw;
+  bottom: 1.4vw;
+}
+.sp--br .sp__card {
+  right: 1.4vw;
+  bottom: 1.4vw;
+  flex-direction: row-reverse;
+}
+
+/* Vertical canvas: scaled up for a phone screen, sized so the open QR still clears Tux in the opposite corner. */
+@media (max-aspect-ratio: 1/1) {
+  .sp {
+    font-size: calc(2.2vw * var(--scale, 1));
+  }
+  .sp--tl .sp__card,
+  .sp--bl .sp__card {
+    left: 4vw;
+  }
+  .sp--tr .sp__card,
+  .sp--br .sp__card {
+    right: 4vw;
+  }
+  .sp--tl .sp__card,
+  .sp--tr .sp__card {
+    top: 4vw;
+  }
+  .sp--bl .sp__card,
+  .sp--br .sp__card {
+    bottom: 4vw;
+  }
+}
+
+@keyframes sp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.8em);
+  }
+}
+
+.sp__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  max-width: 24em;
+}
+
+.sp__logo {
+  display: block;
+  max-width: 24em;
+  max-height: 8em;
+  object-fit: contain;
+}
+
+.sp__name {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 2.2em;
+  line-height: 1;
+}
+
+.sp__caption {
+  margin: 0;
+  font-size: 0.95em;
+  line-height: 1.25;
+}
+
+.sp__qrwrap {
+  overflow: hidden;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  flex: none;
+  transition: width 0.6s cubic-bezier(0.7, 0, 0.2, 1), height 0.6s cubic-bezier(0.7, 0, 0.2, 1), opacity 0.35s ease, margin 0.6s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+/* Closed, the wrapper takes no room, so the card hugs the logo. */
+.sp--open .sp__qrwrap {
+  width: 9em;
+  height: 9em;
+  opacity: 1;
+  transition-delay: 0s, 0s, 0.2s, 0s;
+}
+.sp--tl.sp--open .sp__qrwrap,
+.sp--bl.sp--open .sp__qrwrap {
+  margin-left: 0.7em;
+}
+.sp--tr.sp--open .sp__qrwrap,
+.sp--br.sp--open .sp__qrwrap {
+  margin-right: 0.7em;
+}
+
+.sp__qr {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.sp__qrtile {
+  position: relative;
+  width: 9em;
+  height: 9em;
+  padding: 0.5em;
+  box-sizing: border-box;
+  border-radius: 0.6em;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 0.4em 1em rgba(10, 12, 20, 0.35);
+}
+
+/* Shrinks while the QR code is open so viewers can tell how long they have to scan. */
+.sp__timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 0.25em;
+  width: 100%;
+  background: #5b4fd6;
+  transform-origin: left center;
+  transform: scaleX(var(--left, 0));
+  transition: transform 1s linear;
+}
+
+/* ---------- Outro ---------- */
+
+.ou .cd__glow {
+  left: 30vw;
+  top: 20vw;
+}
+
+.ou__thanks {
+  position: absolute;
+  left: 8vw;
+  top: 20vw;
+  width: 44vw;
+  transform: translateY(-50%);
+}
+
+.ou__title {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 6.4vw;
+  line-height: 0.95;
+  text-wrap: balance;
+}
+
+.ou__see {
+  margin: 1.4vw 0 0;
+  max-width: 34vw;
+  font-size: 1.55vw;
+  line-height: 1.4;
+  color: var(--cd-muted);
+}
+
+.ou__stats {
+  margin-top: 2.4vw;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 2.1vw;
+  line-height: 1.25;
+  color: var(--cd-lilac);
+}
+
+.ou__stats p {
+  margin: 0;
+}
+
+.ou--rolling .ou__stats {
+  animation: lg-in 0.8s ease 0.3s both;
+}
+
+.ou__credits {
+  position: absolute;
+  left: 60vw;
+  top: 3vw;
+  width: 30vw;
+  height: 36vw;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+}
+
+.ou__roll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  animation-name: ou-roll;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-play-state: paused;
+}
+
+.ou--rolling .ou__roll {
+  animation-play-state: running;
+}
+
+@keyframes ou-roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(-100% - 36vw));
+  }
+}
+
+.ou__group {
+  margin-bottom: 2.6vw;
+}
+
+.ou__group-title {
+  margin: 0 0 0.8vw;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.6vw;
+  color: var(--cd-lilac);
+}
+
+.ou__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1vw;
+  margin: 0 0 0.45vw;
+  font-size: 1.3vw;
+}
+
+.ou__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ou__detail {
+  flex: none;
+  color: var(--cd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd *,
+  .lg *,
+  .sp *,
+  .mu *,
+  .ou *:not(.ou__roll) {
+    animation-duration: 0.01s !important;
+    transition-duration: 0.01s !important;
+  }
+}
+
+/* ---------- Control page ---------- */
+
+.ctl {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ctl__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ctl__head h1 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.ctl__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.ctl__section h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.ctl__section label:not(.btn):not(.ctl__check) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.ctl input:not([type="checkbox"]):not([type="file"]) {
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+}
+
+.ctl input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ctl .ctl__num {
+  width: 74px;
+}
+
+.ctl__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ctl__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ctl__status {
+  margin: 0;
+  color: var(--muted);
+}
+
+.ctl__error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: rgba(255, 77, 77, 0.12);
+  color: #ff8a8a;
+}
+
+.ctl__preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ctl__preview img {
+  max-height: 72px;
+  max-width: 180px;
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px;
+}
+
+.ctl__source {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ctl__source-title {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ctl__source code {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.ctl__source .ctl__status {
+  grid-column: 1 / -1;
+  font-size: 12px;
+}
+
+.ctl__previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.ctl__frame {
+  margin: 0;
+}
+
+/* Transparent overlays need something behind them, so the frame stands in for a camera picture. */
+.ctl__frame iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: linear-gradient(135deg, #59606e, #2e333d);
+}
+
+.ctl__frame--portrait iframe {
+  aspect-ratio: 9 / 16;
+  max-width: 150px;
+}
+
+.ctl__frame figcaption {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
