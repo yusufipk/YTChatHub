@@ -6,7 +6,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ChatMessage, ConnectionStatus, Poll, ServerEvent } from '@shared/chat';
-import { bootstrapInnertube, fetchLikeCount, type IngestionContext } from './ingestion/youtubei';
+import { bootstrapInnertube, fetchStats, type IngestionContext } from './ingestion/youtubei';
 import { registerImageProxy } from './imageProxy';
 import { extractLiveId } from './liveId';
 import { createShow } from './show';
@@ -85,9 +85,11 @@ export async function startBackend() {
       const ctx = ingestion;
       const gen = generation;
       if (!ctx) return null;
-      const count = await fetchLikeCount(ctx);
+      const { likes, viewers } = await fetchStats(ctx);
       // A reconnect while the request was in flight makes the answer belong to the old stream.
-      return gen === generation ? count : null;
+      if (gen !== generation) return null;
+      if (viewers !== null) show.setViewers(viewers);
+      return likes;
     }
   });
 
@@ -213,6 +215,7 @@ export async function startBackend() {
     ctx.emitter.on('error', (error) => console.warn(`[Backend] Live chat poll error, library will retry: ${errorText(error)}`));
     setStatus({ state: 'live', liveId, title: ctx.title, error: null });
     show.startLikes(ctx.likeCount);
+    show.setViewers(ctx.viewerCount);
     console.log(`[Backend] Connected to ${liveId}${ctx.title ? ` (${ctx.title})` : ''}`);
     return true;
   }

@@ -9,6 +9,8 @@ export type IngestionContext = {
   title: string | null;
   /** Like count when the chat connected; null when YouTube hides it. */
   likeCount: number | null;
+  /** Concurrent viewers when the chat connected; null when the video is not live. */
+  viewerCount: number | null;
   emitter: ChatEventEmitter;
 };
 
@@ -121,6 +123,7 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
   const info = await client.getInfo(videoId);
   const title = info.basic_info?.title ?? null;
   const likeCount = readLikeCount(info);
+  const viewerCount = readViewerCount(info);
 
   console.log('[Ingestion] Getting live chat...');
   const liveChat = info.getLiveChat();
@@ -176,7 +179,7 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
   liveChat.start();
   console.log('[Ingestion] Live chat listener started');
 
-  return { client, liveChat, videoId, title, likeCount, emitter };
+  return { client, liveChat, videoId, title, likeCount, viewerCount, emitter };
 }
 
 function readLikeCount(info: { basic_info?: { like_count?: number } }): number | null {
@@ -184,9 +187,20 @@ function readLikeCount(info: { basic_info?: { like_count?: number } }): number |
   return typeof count === 'number' && Number.isFinite(count) ? count : null;
 }
 
-/** Reads the current like count. The live chat's metadata updates leave likes empty, so this refetches the watch page data. */
-export async function fetchLikeCount(ctx: IngestionContext): Promise<number | null> {
-  return readLikeCount(await ctx.client.getInfo(ctx.videoId));
+function readViewerCount(info: { basic_info?: { is_live?: boolean }; primary_info?: unknown }): number | null {
+  // Off air the same field is the lifetime view count.
+  if (info.basic_info?.is_live !== true) return null;
+  const count = Number((info.primary_info as { view_count?: { original_view_count?: unknown } } | null | undefined)?.view_count?.original_view_count);
+  return Number.isFinite(count) && count >= 0 ? count : null;
+}
+
+/**
+ * Reads the current like and viewer counts. The live chat's metadata updates leave likes empty, so this refetches
+ * the watch page data; the viewer count rides along as a backup for the metadata updates, whose poll can stall.
+ */
+export async function fetchStats(ctx: IngestionContext): Promise<{ likes: number | null; viewers: number | null }> {
+  const info = await ctx.client.getInfo(ctx.videoId);
+  return { likes: readLikeCount(info), viewers: readViewerCount(info) };
 }
 
 function resolveTimestamp(timestamp: number | string | undefined): string {
