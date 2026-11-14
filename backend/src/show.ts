@@ -10,6 +10,8 @@ const SPONSOR_TICK_MS = 1_000;
 const FINAL_COUNTDOWN_MS = 10_500;
 const MAX_LOGO_BYTES = 2.5 * 1024 * 1024;
 const MAX_SUPPORTERS = 400;
+
+export type SavedSession = { messages: number; chatters: string[]; supporters: Supporter[] };
 const MUSIC_POLL_MS = 1_000;
 // The watcher touches its file every 5 s; past this the watcher is gone and the song is not trusted.
 const MUSIC_STALE_MS = 15_000;
@@ -138,7 +140,7 @@ export function createShow(options: { dataDir: string; emit: (show: ShowState) =
     return { messages: stats.messages, chatters: stats.chatters.size, likes, supporters: [...stats.supporters] };
   }
 
-  /** Counts every chat message for the outro; Super Chats and memberships also go on the credits. */
+  /** Counts every chat message for the outro; Super Chats, gifts and memberships also go on the credits. */
   function recordMessage(message: ChatMessage) {
     stats.messages += 1;
     stats.chatters.add(message.authorChannelId || message.author);
@@ -146,12 +148,26 @@ export function createShow(options: { dataDir: string; emit: (show: ShowState) =
     if (message.superChat) {
       const { amount, currency } = message.superChat;
       stats.supporters.push({ name: message.author, kind: 'super', detail: currency ? `${currency} ${amount}` : amount });
+    } else if (message.gift) {
+      stats.supporters.push({ name: message.author, kind: 'jewel', detail: message.gift.jewels === undefined ? message.gift.name : `${message.gift.name} (${message.gift.jewels})` });
     } else if (message.membershipGiftPurchase) {
       stats.supporters.push({ name: message.author, kind: 'gift', detail: message.giftCount ? String(message.giftCount) : undefined });
     } else if (message.membershipGift) {
       // New members and membership milestones arrive as the same item type, so the credits list both as members.
       stats.supporters.push({ name: message.author, kind: 'member' });
     }
+  }
+
+  /** Session stats in a JSON-safe shape, saved with the chat history so a restart keeps the credits. */
+  function exportSession(): SavedSession {
+    return { messages: stats.messages, chatters: [...stats.chatters], supporters: [...stats.supporters] };
+  }
+
+  function importSession(saved: SavedSession) {
+    stats.messages = saved.messages;
+    stats.chatters = new Set(saved.chatters);
+    stats.supporters.length = 0;
+    stats.supporters.push(...saved.supporters.slice(0, MAX_SUPPORTERS));
   }
 
   function resetSession() {
@@ -437,6 +453,8 @@ export function createShow(options: { dataDir: string; emit: (show: ShowState) =
     snapshot,
     register,
     recordMessage,
+    exportSession,
+    importSession,
     resetSession,
     resetOutro,
     startLikes,

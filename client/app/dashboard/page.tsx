@@ -11,16 +11,18 @@ import { MessageCard } from '../../components/MessageCard';
 import { OnAir } from '../../components/OnAir';
 import { OverlaySettings } from '../../components/OverlaySettings';
 import { TopBar } from '../../components/TopBar';
+import { useStrings } from '../../lib/i18n';
 
 type Toast = { id: number; text: string };
 
 function matches(message: ChatMessage, needle: string): boolean {
   if (!needle) return true;
-  return message.author.toLowerCase().includes(needle) || message.text.toLowerCase().includes(needle);
+  return [message.author, message.text, message.gift?.name ?? ''].some((value) => value.toLowerCase().includes(needle));
 }
 
 export default function DashboardPage() {
-  const { stream, status, messages, selection, poll } = useEvents();
+  const { stream, status, messages, selection, poll, gifts } = useEvents();
+  const t = useStrings();
   const [search, setSearch] = useState('');
   const [paused, setPaused] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -47,19 +49,19 @@ export default function DashboardPage() {
           await api.select(message.id);
         }
       } catch (error) {
-        toast(`Could not update overlay: ${(error as Error).message}`);
+        toast(t.toastUpdate((error as Error).message));
       }
     },
-    [selection, toast]
+    [selection, toast, t]
   );
 
   const clearSelection = useCallback(async () => {
     try {
       await api.clearSelection();
     } catch (error) {
-      toast(`Could not clear overlay: ${(error as Error).message}`);
+      toast(t.toastClear((error as Error).message));
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const connect = useCallback(async (liveId: string) => {
     setBusy(true);
@@ -78,9 +80,9 @@ export default function DashboardPage() {
     try {
       await api.disconnect();
     } catch (error) {
-      toast(`Could not disconnect: ${(error as Error).message}`);
+      toast(t.toastDisconnect((error as Error).message));
     }
-  }, [toast]);
+  }, [toast, t]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -112,7 +114,7 @@ export default function DashboardPage() {
     const members: ChatMessage[] = [];
     for (const message of messages) {
       if (!matches(message, needle)) continue;
-      if (message.superChat) supers.push(message);
+      if (message.superChat || message.gift) supers.push(message);
       else if (message.membershipGift || message.membershipGiftPurchase) members.push(message);
       else chat.push(message);
     }
@@ -138,7 +140,7 @@ export default function DashboardPage() {
       {showConnect ? (
         <ConnectForm
           busy={busy || status.state === 'connecting'}
-          error={connectError ?? (stream === 'error' ? 'Backend is not reachable. Is it running?' : status.error ?? null)}
+          error={connectError ?? (stream === 'error' ? t.backendDown : status.error ?? null)}
           onConnect={connect}
         />
       ) : (
@@ -147,6 +149,7 @@ export default function DashboardPage() {
             status={status}
             stream={stream}
             poll={poll}
+            gifts={gifts}
             counts={{ chat: groups.chat.length, super: groups.supers.length, members: groups.members.length }}
             search={search}
             searchRef={searchRef}
@@ -161,25 +164,25 @@ export default function DashboardPage() {
             <div className="panel">
               <div className="panel__head">
                 <MessageSquare size={13} />
-                Chat
-                {needle && <span className="panel__note">filtered</span>}
+                {t.chat}
+                {needle && <span className="panel__note">{t.filtered}</span>}
               </div>
-              <ChatList messages={groups.chat} paused={paused} render={renderCard} empty={needle ? 'No messages match.' : 'Waiting for messages…'} />
+              <ChatList messages={groups.chat} paused={paused} render={renderCard} empty={needle ? t.noMatch : t.waiting} />
             </div>
             <div className="side">
               <div className="panel">
                 <div className="panel__head">
                   <Sparkles size={13} />
-                  Super Chats
+                  {t.supersAndGifts}
                 </div>
-                <ChatList messages={groups.supers} render={renderCard} empty="No Super Chats yet." />
+                <ChatList messages={groups.supers} render={renderCard} empty={t.noSupers} />
               </div>
               <div className="panel">
                 <div className="panel__head">
                   <Gift size={13} />
-                  Memberships
+                  {t.memberships}
                 </div>
-                <ChatList messages={groups.members} render={renderCard} empty="No new members yet." />
+                <ChatList messages={groups.members} render={renderCard} empty={t.noMembers} />
               </div>
             </div>
           </section>
@@ -191,12 +194,12 @@ export default function DashboardPage() {
       {linkToOpen && (
         <div className="modal" onClick={() => setLinkToOpen(null)}>
           <div className="modal__card" onClick={(event) => event.stopPropagation()}>
-            <h2>Open this link?</h2>
+            <h2>{t.openLink}</h2>
             <p className="modal__url">{linkToOpen}</p>
             <div className="modal__actions">
-              <button type="button" className="btn" onClick={() => setLinkToOpen(null)}>Cancel</button>
+              <button type="button" className="btn" onClick={() => setLinkToOpen(null)}>{t.cancel}</button>
               <a className="btn btn--primary" href={linkToOpen} target="_blank" rel="noopener noreferrer" onClick={() => setLinkToOpen(null)}>
-                Open in new tab
+                {t.openInTab}
               </a>
             </div>
           </div>

@@ -1,7 +1,7 @@
-export function formatTime(iso: string): string {
+export function formatTime(iso: string, locale?: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString(locale ?? [], { hour: '2-digit', minute: '2-digit' });
 }
 
 const URL_PATTERN = /(https?:\/\/[^\s<>"']+)/gi;
@@ -25,3 +25,6 @@ export function splitLinks(text: string): TextPart[] {
 export function formatAmount(amount: string, currency: string): string {
   return currency ? `${currency} ${amount}` : amount;
 }
+
+/** Card accent for jewel gifts, which carry no colour of their own. Matches the pink of YouTube's jewel icon. */
+export const GIFT_ACCENT = '#c026d3';

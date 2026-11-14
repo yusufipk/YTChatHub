@@ -7,9 +7,11 @@ import path from 'path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ChatMessage, ConnectionStatus, Poll, ServerEvent } from '@shared/chat';
 import { bootstrapInnertube, fetchStats, type IngestionContext } from './ingestion/youtubei';
+import { giftPricesStatus, initGiftPrices } from './ingestion/giftCatalog';
 import { registerImageProxy } from './imageProxy';
 import { extractLiveId } from './liveId';
 import { createShow } from './show';
+import { createChatHistory, replayKey } from './chatHistory';
 
 const MAX_REGULAR_MESSAGES = 200;
 const MAX_SPECIAL_MESSAGES = 500;
@@ -23,7 +25,7 @@ const CORS_ORIGINS = ['http://localhost:3100', 'http://127.0.0.1:3100'];
 
 type Bus = EventEmitter<{ event: (event: ServerEvent) => void }>;
 
-const isSpecial = (m: ChatMessage) => !!(m.superChat || m.membershipGift || m.membershipGiftPurchase);
+const isSpecial = (m: ChatMessage) => !!(m.superChat || m.gift || m.membershipGift || m.membershipGiftPurchase);
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Drops the oldest messages of each class past its cap, in place, without allocating. */
@@ -77,9 +79,11 @@ export async function startBackend() {
   let generation = 0;
 
   const emit = (event: ServerEvent) => bus.emit('event', event);
+  const dataDir = path.resolve(process.env.SHOW_DATA_DIR ?? path.join(process.cwd(), 'data'));
+  initGiftPrices(dataDir, (gifts) => emit({ type: 'gifts', gifts }));
 
   const show = createShow({
-    dataDir: path.resolve(process.env.SHOW_DATA_DIR ?? path.join(process.cwd(), 'data')),
+    dataDir,
     emit: (state) => emit({ type: 'show', show: state }),
     fetchLikes: async () => {
       const ctx = ingestion;
@@ -93,13 +97,75 @@ export async function startBackend() {
     }
   });
 
+  // The live id whose chat is being recorded; null while idle or disconnected so mock messages are never saved.
+  let historyLiveId: string | null = null;
+  // Restored messages YouTube may send again right after connecting, counted per key: YouTube can reuse one id for
+  // identical messages (stored as id, id#1, ...), and each replay consumes one occurrence.
+  // Replays arrive in the first poll after connecting; leftovers expire so a later identical message is not dropped.
+  const REPLAY_WINDOW_MS = 60_000;
+  const replayKeys = new Map<string, number>();
+  let replayUntil = 0;
+  const expectReplays = () => {
+    replayKeys.clear();
+    replayUntil = Date.now() + REPLAY_WINDOW_MS;
+    for (const message of store) {
+      const key = replayKey(message);
+      replayKeys.set(key, (replayKeys.get(key) ?? 0) + 1);
+    }
+  };
+  const history = createChatHistory(dataDir, () =>
+    historyLiveId ? { liveId: historyLiveId, messages: store, session: show.exportSession() } : null
+  );
+
+  // Node runs as PID 1 in the container and has no default SIGTERM handler, so save the last seconds of chat here.
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(signal, () => {
+      history.flush();
+      process.exit(0);
+    });
+  }
+
+  /** Starts recording a stream: restores its saved chat when it is the one recorded last, otherwise starts clean. */
+  function beginStream(liveId: string) {
+    detach();
+    history.flush();
+    const saved = history.load(liveId);
+    clearStore();
+    replayKeys.clear();
+    historyLiveId = liveId;
+    if (saved) {
+      // Same stream as before a restart or disconnect: bring back its chat and credits instead of starting clean.
+      store.push(...saved.messages);
+      trimMessages(store);
+      expectReplays();
+      emit({ type: 'messages', messages: store });
+      show.importSession(saved.session);
+      console.log(`[Backend] Restored ${store.length} messages of ${liveId}`);
+    } else {
+      // Stats and credits survive a disconnect, so the end screen can still roll after one; a new stream starts clean.
+      show.resetSession();
+      show.resetOutro();
+    }
+  }
+
   function setStatus(patch: Partial<ConnectionStatus>) {
     status = { ...status, ...patch };
     emit({ type: 'status', status });
   }
 
   function pushMessage(message: ChatMessage) {
+    if (replayKeys.size > 0 && Date.now() > replayUntil) replayKeys.clear();
+    if (replayKeys.size > 0) {
+      const key = replayKey(message);
+      const left = replayKeys.get(key);
+      if (left !== undefined) {
+        if (left > 1) replayKeys.set(key, left - 1);
+        else replayKeys.delete(key);
+        return;
+      }
+    }
     store.push(message);
+    if (historyLiveId) history.schedule();
     trimMessages(store);
     show.recordMessage(message);
     emit({ type: 'message', message });
@@ -165,6 +231,8 @@ export async function startBackend() {
   }
 
   function idle(patch: Partial<ConnectionStatus>) {
+    history.flush();
+    historyLiveId = null;
     setStatus({ state: 'disconnected', ...patch });
     startMock();
   }
@@ -188,6 +256,8 @@ export async function startBackend() {
   async function connect(liveId: string, attempt = 0): Promise<boolean> {
     stopMock();
     const gen = ++generation;
+    // A retry reconnects to the same chat, which replays its recent messages; those are already in the store.
+    if (attempt > 0) expectReplays();
     if (attempt === 0) setStatus({ state: 'connecting', liveId, title: null, error: null });
 
     let ctx: IngestionContext;
@@ -234,11 +304,7 @@ export async function startBackend() {
       reply.status(400);
       return { error: 'Invalid YouTube Live ID or URL' };
     }
-    detach();
-    clearStore();
-    // Stats and credits survive a disconnect, so the end screen can still roll after one; a new stream starts clean.
-    show.resetSession();
-    show.resetOutro();
+    beginStream(liveId);
     if (!(await connect(liveId))) {
       reply.status(500);
       return { error: status.error ?? 'Failed to connect to YouTube Live chat' };
@@ -248,6 +314,8 @@ export async function startBackend() {
 
   fastify.post('/chat/disconnect', async () => {
     detach();
+    history.flush();
+    historyLiveId = null;
     clearStore();
     idle({ liveId: null, title: null, error: null });
     return { ok: true };
@@ -303,7 +371,7 @@ export async function startBackend() {
       }
       ws.send(JSON.stringify(event));
     };
-    send({ type: 'init', status, messages: store, selection, poll, show: show.snapshot() });
+    send({ type: 'init', status, messages: store, selection, poll, show: show.snapshot(), gifts: giftPricesStatus() });
     bus.on('event', send);
     let alive = true;
     ws.on('pong', () => (alive = true));
@@ -341,6 +409,7 @@ export async function startBackend() {
 
   const envLiveId = extractLiveId(process.env.YOUTUBE_LIVE_ID);
   if (envLiveId) {
+    beginStream(envLiveId);
     // Attempt 1 rather than 0 so a failed startup connect goes through the retry schedule instead of giving up.
     void connect(envLiveId, 1);
   } else {

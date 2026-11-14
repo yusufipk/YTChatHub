@@ -7,14 +7,15 @@ import { api } from '../../lib/api';
 import { BACKEND_URL } from '../../lib/config';
 import { useEvents } from '../../lib/useEvents';
 import { useNow } from '../../lib/useShowOverlay';
+import { setLang, STRINGS, useLang } from '../../lib/i18n';
 
 function formatLeft(ms: number): string {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-function clock(epoch: number): string {
-  return new Date(epoch).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function clock(epoch: number, locale: string): string {
+  return new Date(epoch).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 type Form = {
@@ -44,35 +45,38 @@ function formFrom(show: ShowState): Form {
 }
 
 // Corner sources scale up by themselves on a portrait (vertical canvas) source, so one URL serves both canvases.
+// Titles and notes live in lib/i18n.ts under `sources`, keyed by `key`.
 const SOURCES = [
-  { title: 'Countdown, main canvas', path: 'countdown', query: 'lang=tr&scene=Full%20Cam', note: 'Starting Soon scene. Switches to Full Cam at zero; needs page permission "Advanced access to OBS".' },
-  { title: 'Countdown, vertical canvas', path: 'countdown', query: 'lang=tr', note: 'Start Soon scene on the vertical canvas, sized 1440×2560. No scene switch: that only works on the main canvas.' },
-  { title: 'Like goal, top right', path: 'goal', query: 'lang=tr&pos=tr', note: 'Size it like the canvas: 1920×1080 or 3840×2160, or 1440×2560 on the vertical canvas.' },
-  { title: 'Like goal, top left', path: 'goal', query: 'lang=tr&pos=tl', note: 'Same as above, other corner.' },
-  { title: 'Like goal, bottom left', path: 'goal', query: 'lang=tr&pos=bl', note: 'For the end scene.' },
-  { title: 'Like goal, bottom right', path: 'goal', query: 'lang=tr&pos=br', note: 'Same as above, other corner.' },
-  { title: 'Sponsor, top left', path: 'sponsor', query: 'lang=tr&pos=tl', note: 'Logo always on, the QR code opens to its right on the cycle set above.' },
-  { title: 'Sponsor, top right', path: 'sponsor', query: 'lang=tr&pos=tr', note: 'For scenes where the logo sits on the right; the QR code opens to its left.' },
-  { title: 'Now playing, bottom left', path: 'music', query: 'pos=bl', note: 'Cover, title and artist of the track the VLC source plays. Needs scripts/now-playing.py running.' },
-  { title: 'Now playing, bottom right', path: 'music', query: 'pos=br', note: 'Same as above, other corner.' },
-  { title: 'Now playing, top left', path: 'music', query: 'pos=tl', note: 'Same as above, other corner.' },
-  { title: 'Now playing, top right', path: 'music', query: 'pos=tr', note: 'Same as above, other corner.' },
-  { title: 'End screen', path: 'outro', query: 'lang=tr', note: 'Thanks, Tux and the rolling credits. Start them with "Roll credits" above.' }
+  { key: 'countdownMain', path: 'countdown', query: 'lang=tr&scene=Full%20Cam' },
+  { key: 'countdownVertical', path: 'countdown', query: 'lang=tr' },
+  { key: 'goalTr', path: 'goal', query: 'lang=tr&pos=tr' },
+  { key: 'goalTl', path: 'goal', query: 'lang=tr&pos=tl' },
+  { key: 'goalBl', path: 'goal', query: 'lang=tr&pos=bl' },
+  { key: 'goalBr', path: 'goal', query: 'lang=tr&pos=br' },
+  { key: 'sponsorTl', path: 'sponsor', query: 'lang=tr&pos=tl' },
+  { key: 'sponsorTr', path: 'sponsor', query: 'lang=tr&pos=tr' },
+  { key: 'musicBl', path: 'music', query: 'pos=bl' },
+  { key: 'musicBr', path: 'music', query: 'pos=br' },
+  { key: 'musicTl', path: 'music', query: 'pos=tl' },
+  { key: 'musicTr', path: 'music', query: 'pos=tr' },
+  { key: 'outro', path: 'outro', query: 'lang=tr' }
 ];
 
 const PREVIEWS = [
-  { title: 'Countdown', src: 'countdown/?lang=tr', portrait: false },
-  { title: 'Countdown, vertical', src: 'countdown/?lang=tr', portrait: true },
-  { title: 'Like goal (demo numbers)', src: 'goal/?lang=tr&pos=tr&demo=1', portrait: false },
-  { title: 'Like goal, vertical', src: 'goal/?lang=tr&pos=tl&demo=1', portrait: true },
-  { title: 'Sponsor', src: 'sponsor/?lang=tr&pos=tl', portrait: false },
-  { title: 'Sponsor, vertical', src: 'sponsor/?lang=tr&pos=tl', portrait: true },
-  { title: 'Now playing', src: 'music/?pos=bl', portrait: false },
-  { title: 'End screen', src: 'outro/?lang=tr', portrait: false }
+  { key: 'previewCountdown', src: 'countdown/?lang=tr', portrait: false },
+  { key: 'previewCountdownVertical', src: 'countdown/?lang=tr', portrait: true },
+  { key: 'previewGoal', src: 'goal/?lang=tr&pos=tr&demo=1', portrait: false },
+  { key: 'previewGoalVertical', src: 'goal/?lang=tr&pos=tl&demo=1', portrait: true },
+  { key: 'previewSponsor', src: 'sponsor/?lang=tr&pos=tl', portrait: false },
+  { key: 'previewSponsorVertical', src: 'sponsor/?lang=tr&pos=tl', portrait: true },
+  { key: 'previewMusic', src: 'music/?pos=bl', portrait: false },
+  { key: 'previewOutro', src: 'outro/?lang=tr', portrait: false }
 ];
 
 export default function ShowControlPage() {
   const { show, clockOffset, stream } = useEvents();
+  const lang = useLang();
+  const t = STRINGS[lang];
   const [form, setForm] = useState<Form | null>(null);
   const [minutes, setMinutes] = useState('10');
   const [error, setError] = useState<string | null>(null);
@@ -136,174 +140,177 @@ export default function ShowControlPage() {
   return (
     <main className="ctl">
       <header className="ctl__head">
-        <h1>Show control</h1>
-        <a className="btn" href="/dashboard/">Chat dashboard</a>
+        <h1>{t.showControl}</h1>
+        <a className="btn" href="/dashboard/">{t.chatDashboard}</a>
+        <button type="button" className="btn" onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')} title={t.langToggleTitle}>
+          {t.langToggle}
+        </button>
       </header>
-      {stream === 'error' && <p className="ctl__error">Backend unreachable</p>}
+      {stream === 'error' && <p className="ctl__error">{t.backendUnreachable}</p>}
       {error && <p className="ctl__error">{error}</p>}
 
       <section className="ctl__section">
-        <h2>Countdown</h2>
+        <h2>{t.countdown}</h2>
         <p className="ctl__status">
-          {left === null ? 'Not running' : left > 0 ? `${formatLeft(left)} left, ends ${clock(endsAt!)}` : 'Finished'}
+          {left === null ? t.notRunning : left > 0 ? t.leftEnds(formatLeft(left), clock(endsAt!, t.locale)) : t.finished}
         </p>
         <div className="ctl__row">
-          <input className="ctl__num" type="number" min={1} max={240} value={minutes} onChange={(e) => setMinutes(e.target.value)} aria-label="Minutes" />
+          <input className="ctl__num" type="number" min={1} max={240} value={minutes} onChange={(e) => setMinutes(e.target.value)} aria-label={t.minutes} />
           <button type="button" className="btn btn--primary" onClick={() => run(() => api.countdown({ action: 'start', minutes: Number(minutes) }))}>
-            <Play size={14} /> Start
+            <Play size={14} /> {t.start}
           </button>
           <button type="button" className="btn" onClick={() => run(() => api.countdown({ action: 'stop' }))}>
-            <Square size={14} /> Stop
+            <Square size={14} /> {t.stop}
           </button>
         </div>
         <div className="ctl__row">
           <button type="button" className="btn" disabled={!canShift} onClick={() => run(() => api.countdown({ action: 'shift', minutes: -1 }))}>
-            <Minus size={14} /> 1 min
+            <Minus size={14} /> {t.min('1')}
           </button>
           <button type="button" className="btn" disabled={!canShift} onClick={() => run(() => api.countdown({ action: 'shift', minutes: 1 }))}>
-            <Plus size={14} /> 1 min
+            <Plus size={14} /> {t.min('1')}
           </button>
           <button type="button" className="btn" disabled={!canShift} onClick={() => run(() => api.countdown({ action: 'shift', minutes: 5 }))}>
-            <Plus size={14} /> 5 min
+            <Plus size={14} /> {t.min('5')}
           </button>
-          <button type="button" className="btn" onClick={() => run(() => api.countdown({ action: 'final' }))} title="Jump to the last 10 seconds">
-            <Timer size={14} /> Go in 10 s
+          <button type="button" className="btn" onClick={() => run(() => api.countdown({ action: 'final' }))} title={t.goIn10Title}>
+            <Timer size={14} /> {t.goIn10}
           </button>
         </div>
       </section>
 
       {form && (
         <form className="ctl__section" onSubmit={saveSettings}>
-          <h2>Stream info</h2>
+          <h2>{t.streamInfo}</h2>
           <label>
-            Show name
-            <input value={form.title} onChange={field('title')} maxLength={80} placeholder="Shown big on the countdown" />
+            {t.showName}
+            <input value={form.title} onChange={field('title')} maxLength={80} placeholder={t.showNamePlaceholder} />
           </label>
           <label>
-            Topic
-            <input value={form.topic} onChange={field('topic')} maxLength={160} placeholder="Optional line under the name" />
+            {t.topic}
+            <input value={form.topic} onChange={field('topic')} maxLength={160} placeholder={t.topicPlaceholder} />
           </label>
           <label>
-            Like goal step
+            {t.likeStep}
             <input className="ctl__num" type="number" min={5} value={form.likeStep} onChange={field('likeStep')} />
           </label>
           <p className="ctl__status">
             {show?.likes.count === null || show?.likes.count === undefined
               ? show?.viewers != null
-                ? `${show.viewers} watching; YouTube is not sharing the like count`
-                : 'Live likes start once a stream is connected; the preview below counts demo numbers'
-              : `${show.likes.count} likes, next goal ${(Math.floor(show.likes.count / show.likes.step) + 1) * show.likes.step}${show.viewers !== null ? `, ${show.viewers} watching` : ''}`}
+                ? t.watchingNoLikes(show.viewers)
+                : t.likesNotYet
+              : t.likesStatus(show.likes.count, (Math.floor(show.likes.count / show.likes.step) + 1) * show.likes.step, show.viewers)}
           </p>
-          <button type="submit" className="btn btn--primary">Save</button>
+          <button type="submit" className="btn btn--primary">{t.save}</button>
         </form>
       )}
 
       {form && show && (
         <form className="ctl__section" onSubmit={saveSponsor}>
-          <h2>Sponsor</h2>
+          <h2>{t.sponsor}</h2>
           <label>
-            Name
+            {t.name}
             <input value={form.name} onChange={field('name')} maxLength={80} />
           </label>
           <label>
-            Link for the QR code
+            {t.qrLink}
             <input value={form.url} onChange={field('url')} maxLength={500} placeholder="https://" />
           </label>
           <label>
-            Line under the logo
-            <input value={form.caption} onChange={field('caption')} maxLength={120} placeholder="Optional, shown small under the logo" />
+            {t.captionLine}
+            <input value={form.caption} onChange={field('caption')} maxLength={120} placeholder={t.captionPlaceholder} />
           </label>
           <div className="ctl__row">
             <label className="ctl__check">
-              <input type="checkbox" checked={form.auto} onChange={field('auto')} /> Open the QR code every
+              <input type="checkbox" checked={form.auto} onChange={field('auto')} /> {t.qrEvery}
             </label>
-            <input className="ctl__num" type="number" min={10} max={3600} value={form.everySeconds} onChange={field('everySeconds')} aria-label="Seconds between QR showings" />
-            <span>s for</span>
-            <input className="ctl__num" type="number" min={3} max={3600} value={form.showSeconds} onChange={field('showSeconds')} aria-label="Seconds the QR code stays open" />
-            <span>s</span>
+            <input className="ctl__num" type="number" min={10} max={3600} value={form.everySeconds} onChange={field('everySeconds')} aria-label={t.qrEveryLabel} />
+            <span>{t.qrFor}</span>
+            <input className="ctl__num" type="number" min={3} max={3600} value={form.showSeconds} onChange={field('showSeconds')} aria-label={t.qrForLabel} />
+            <span>{t.qrSeconds}</span>
           </div>
           <div className="ctl__preview">
             {show.sponsor.logoVersion ? (
-              <img src={`${BACKEND_URL}/show/sponsor/logo?v=${show.sponsor.logoVersion}`} alt="Sponsor logo" />
+              <img src={`${BACKEND_URL}/show/sponsor/logo?v=${show.sponsor.logoVersion}`} alt={t.sponsorLogo} />
             ) : (
-              <span className="ctl__status">No logo, the name is shown instead</span>
+              <span className="ctl__status">{t.noLogo}</span>
             )}
-            {show.sponsor.qr && <img src={`data:image/svg+xml;utf8,${encodeURIComponent(show.sponsor.qr)}`} alt="QR code preview" />}
+            {show.sponsor.qr && <img src={`data:image/svg+xml;utf8,${encodeURIComponent(show.sponsor.qr)}`} alt={t.qrPreview} />}
           </div>
           <div className="ctl__row">
             <label className="btn">
-              <Upload size={14} /> Logo
+              <Upload size={14} /> {t.logo}
               <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={uploadLogo} />
             </label>
             {show.sponsor.logoVersion && (
               <button type="button" className="btn" onClick={() => run(() => api.removeSponsorLogo())}>
-                <X size={14} /> Remove logo
+                <X size={14} /> {t.removeLogo}
               </button>
             )}
-            <button type="submit" className="btn btn--primary">Save</button>
+            <button type="submit" className="btn btn--primary">{t.save}</button>
           </div>
           <div className="ctl__row">
             <button type="button" className="btn" onClick={() => run(() => api.showSponsor())}>
-              <Eye size={14} /> Show QR now
+              <Eye size={14} /> {t.showQr}
             </button>
             <button type="button" className="btn" disabled={sponsorLeft <= 0} onClick={() => run(() => api.hideSponsor())}>
-              <EyeOff size={14} /> Close QR
+              <EyeOff size={14} /> {t.closeQr}
             </button>
-            {sponsorLeft > 0 && <span className="ctl__status">Open for {formatLeft(sponsorLeft)}</span>}
+            {sponsorLeft > 0 && <span className="ctl__status">{t.openFor(formatLeft(sponsorLeft))}</span>}
           </div>
         </form>
       )}
 
       <section className="ctl__section">
-        <h2>Music</h2>
+        <h2>{t.music}</h2>
         <p className="ctl__status">
           {show?.music
-            ? `Now playing: ${show.music.artist ? `${show.music.artist}, ` : ''}${show.music.title}`
-            : 'Nothing playing. scripts/now-playing.py has to run on this machine to read the track from OBS.'}
+            ? t.nowPlaying(`${show.music.artist ? `${show.music.artist}, ` : ''}${show.music.title}`)
+            : t.nothingPlaying}
         </p>
       </section>
 
       <section className="ctl__section">
-        <h2>End screen</h2>
+        <h2>{t.endScreen}</h2>
         <p className="ctl__status">
-          {show?.outro.startedAt ? `Credits rolling since ${clock(show.outro.startedAt)}` : 'Start this when you switch to the end scene. It freezes the stats and rolls the credits.'}
+          {show?.outro.startedAt ? t.creditsSince(clock(show.outro.startedAt, t.locale)) : t.endHint}
         </p>
         <div className="ctl__row">
           <button type="button" className="btn btn--primary" onClick={() => run(() => api.outro(true))}>
-            <Play size={14} /> {show?.outro.startedAt ? 'Restart credits' : 'Roll credits'}
+            <Play size={14} /> {show?.outro.startedAt ? t.restartCredits : t.rollCredits}
           </button>
           <button type="button" className="btn" disabled={!show?.outro.startedAt} onClick={() => run(() => api.outro(false))}>
-            <Square size={14} /> Reset
+            <Square size={14} /> {t.reset}
           </button>
         </div>
       </section>
 
       <section className="ctl__section">
-        <h2>Preview</h2>
-        <p className="ctl__status">The real overlays, live. The countdown shows whatever is running now.</p>
+        <h2>{t.preview}</h2>
+        <p className="ctl__status">{t.previewHint}</p>
         <div className="ctl__previews">
           {PREVIEWS.map((preview) => (
-            <figure key={preview.title} className={`ctl__frame ${preview.portrait ? 'ctl__frame--portrait' : ''}`}>
-              <iframe src={`${origin}/${preview.src}`} title={preview.title} loading="lazy" />
-              <figcaption>{preview.title}</figcaption>
+            <figure key={preview.key} className={`ctl__frame ${preview.portrait ? 'ctl__frame--portrait' : ''}`}>
+              <iframe src={`${origin}/${preview.src}`} title={t.sources[preview.key][0]} loading="lazy" />
+              <figcaption>{t.sources[preview.key][0]}</figcaption>
             </figure>
           ))}
         </div>
       </section>
 
       <section className="ctl__section">
-        <h2>OBS browser sources</h2>
-        <p className="ctl__status">Set each source to the size of the canvas it sits on.</p>
+        <h2>{t.obsSources}</h2>
+        <p className="ctl__status">{t.obsSourcesHint}</p>
         {SOURCES.map((source) => {
           const url = `${origin}/${source.path}/?${source.query}`;
           return (
             <div key={url} className="ctl__source">
-              <strong className="ctl__source-title">{source.title}</strong>
+              <strong className="ctl__source-title">{t.sources[source.key][0]}</strong>
               <code>{url}</code>
-              <button type="button" className="btn btn--icon" onClick={() => void navigator.clipboard?.writeText(url)} title="Copy URL">
+              <button type="button" className="btn btn--icon" onClick={() => void navigator.clipboard?.writeText(url)} title={t.copyUrl}>
                 <Copy size={14} />
               </button>
-              <span className="ctl__status">{source.note}</span>
+              <span className="ctl__status">{t.sources[source.key][1]}</span>
             </div>
           );
         })}

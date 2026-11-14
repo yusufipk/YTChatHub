@@ -3,16 +3,18 @@
 import { X } from 'lucide-react';
 import type { ChatMessage } from '@shared/chat';
 import { proxyImageUrl } from '../lib/imageProxy';
-import { formatAmount } from '../lib/format';
+import { GIFT_ACCENT, formatAmount } from '../lib/format';
+import { giftLabel, useStrings } from '../lib/i18n';
 import { MessageBody } from './MessageBody';
 
 type Props = { selection: ChatMessage | null; onClear: () => void };
 
 /** Mirrors what the OBS overlay is showing right now, so the operator never has to guess. */
 export function OnAir({ selection, onClear }: Props) {
+  const t = useStrings();
   return (
     <section className={`onair ${selection ? 'onair--live' : ''}`}>
-      <span className="onair__label">On air</span>
+      <span className="onair__label">{t.onAir}</span>
       {selection ? (
         <>
           {selection.authorPhoto && <img src={proxyImageUrl(selection.authorPhoto)} alt="" className="avatar avatar--sm" />}
@@ -22,14 +24,19 @@ export function OnAir({ selection, onClear }: Props) {
               {formatAmount(selection.superChat.amount, selection.superChat.currency)}
             </span>
           )}
+          {selection.gift && (
+            <span className="card__amount" style={{ background: GIFT_ACCENT }}>
+              {giftLabel(selection.gift, t)}
+            </span>
+          )}
           <MessageBody message={selection} className="onair__text" />
-          <button type="button" className="btn btn--sm" onClick={onClear} title="Clear the overlay (Esc)">
+          <button type="button" className="btn btn--sm" onClick={onClear} title={t.clearTitle}>
             <X size={13} />
-            Clear
+            {t.clear}
           </button>
         </>
       ) : (
-        <span className="onair__hint">Nothing on the overlay. Click a message to show it, click again to hide it.</span>
+        <span className="onair__hint">{t.onAirHint}</span>
       )}
     </section>
   );

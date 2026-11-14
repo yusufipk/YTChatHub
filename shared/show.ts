@@ -2,8 +2,8 @@
 
 export type Supporter = {
   name: string;
-  kind: 'super' | 'member' | 'gift';
-  /** Formatted Super Chat amount, or the number of gifted memberships. */
+  kind: 'super' | 'member' | 'gift' | 'jewel';
+  /** Formatted Super Chat amount, the number of gifted memberships, or the name of a jewel gift. */
   detail?: string;
 };
 
