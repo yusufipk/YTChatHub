@@ -1,4 +1,4 @@
-/** On-screen copy for the show overlays. Pick with `?lang=`; English is the default. */
+/** On-screen copy for the show overlays. Pick with `?lang=`; Turkish is the default. */
 const TEXT = {
   en: {
     locale: 'en-US',
@@ -15,6 +15,7 @@ const TEXT = {
     superChats: 'Super Chats',
     members: 'Members',
     gifts: 'Gifted memberships',
+    jewelGifts: 'Gifts',
     gifted: (n: string) => `${n} gifted`
   },
   tr: {
@@ -32,6 +33,7 @@ const TEXT = {
     superChats: 'Süper Sohbet',
     members: 'Üyeler',
     gifts: 'Hediye üyelik',
+    jewelGifts: 'Hediyeler',
     gifted: (n: string) => `${n} hediye`
   }
 };
@@ -39,7 +41,7 @@ const TEXT = {
 export type ShowText = (typeof TEXT)['en'];
 
 export function showText(lang: string | null): ShowText {
-  return lang === 'tr' ? TEXT.tr : TEXT.en;
+  return lang === 'en' ? TEXT.en : TEXT.tr;
 }
 
 export function formatNumber(value: number, text: ShowText): string {

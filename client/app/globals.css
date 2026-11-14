@@ -663,6 +663,15 @@ select:focus {
   margin: 6px 0 0 30px;
 }
 
+/* Gift art is square with built-in padding; smaller than a Super Sticker and centred under the header. */
+.gift {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 4px auto 0;
+  object-fit: contain;
+}
+
 .link {
   color: var(--blue);
   text-decoration: underline;
@@ -1060,6 +1069,14 @@ select:focus {
   max-width: 6em;
   max-height: 6em;
   margin-top: 0.4em;
+}
+
+.ov__gift {
+  display: block;
+  width: 4.5em;
+  height: 4.5em;
+  margin: 0.3em auto 0;
+  object-fit: contain;
 }
 
 .ov--anim-fade .ov__card {

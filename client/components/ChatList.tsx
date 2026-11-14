@@ -3,6 +3,7 @@
 import { ArrowDown } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { ChatMessage } from '@shared/chat';
+import { useStrings } from '../lib/i18n';
 
 type Props = {
   messages: ChatMessage[];
@@ -19,6 +20,7 @@ const BOTTOM_THRESHOLD = 80;
  * While paused the list is frozen at its current contents.
  */
 export function ChatList({ messages, paused = false, render, empty }: Props) {
+  const t = useStrings();
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const [unseen, setUnseen] = useState(0);
@@ -67,11 +69,11 @@ export function ChatList({ messages, paused = false, render, empty }: Props) {
       {unseen > 0 && !following.current && (
         <button type="button" className="list__jump" onClick={jump}>
           <ArrowDown size={14} />
-          {unseen} new
+          {t.newMessages(unseen)}
         </button>
       )}
       {paused && frozen && messages.length > frozen.length && (
-        <span className="list__paused">Paused, {messages.length - frozen.length} waiting</span>
+        <span className="list__paused">{t.pausedWaiting(messages.length - frozen.length)}</span>
       )}
     </div>
   );

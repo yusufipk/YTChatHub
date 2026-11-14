@@ -2,6 +2,7 @@
 
 import { Radio } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { useStrings } from '../lib/i18n';
 
 type Props = {
   busy: boolean;
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function ConnectForm({ busy, error, onConnect }: Props) {
+  const t = useStrings();
   const [value, setValue] = useState('');
 
   const submit = (event: FormEvent) => {
@@ -23,8 +25,8 @@ export function ConnectForm({ busy, error, onConnect }: Props) {
         <span className="connect__icon">
           <Radio size={22} />
         </span>
-        <h1>Connect to a live stream</h1>
-        <p>Paste the video URL or the 11 character video id of a stream that is live now.</p>
+        <h1>{t.connectTitle}</h1>
+        <p>{t.connectHint}</p>
         <input
           autoFocus
           value={value}
@@ -35,7 +37,7 @@ export function ConnectForm({ busy, error, onConnect }: Props) {
         />
         {error && <p className="connect__error">{error}</p>}
         <button type="submit" className="btn btn--primary" disabled={busy || !value.trim()}>
-          {busy ? 'Connecting…' : 'Connect'}
+          {busy ? t.connecting : t.connect}
         </button>
       </form>
     </div>

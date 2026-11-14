@@ -1,6 +1,7 @@
 import type { ChatMessage, Badge, MessageRun, SuperChatInfo, Poll } from '@shared/chat';
 import EventEmitter from 'eventemitter3';
 import Innertube from 'youtubei.js';
+import { currentGiftPrices, giftAsset, lookupJewels, refreshGiftPrices, type GiftPrices } from './giftCatalog';
 
 export type IngestionContext = {
   client: Innertube;
@@ -112,6 +113,11 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
     throw new Error('YOUTUBE_LIVE_ID is required to bootstrap Innertube');
   }
   seenIds.clear();
+  unhandledLogged = 0;
+  unknownRenderers.clear();
+  unpricedGifts.clear();
+  currentVideoId = videoId;
+  refreshGiftPrices(videoId);
 
   console.log('[Ingestion] Creating Innertube client...');
   // No cache: even UniversalCache(false) writes session data to os.tmpdir(), and a session captured during a
@@ -151,13 +157,23 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
     const normalized = normalizeAction(action);
     if (normalized) {
       emitter.emit('message', normalized);
+    } else {
+      logUnhandledAction(action);
     }
   });
 
   liveChat.on('error', (err: unknown) => {
     const msg = (err as any)?.message || String(err);
     // Unknown renderer types are parser drift that youtubei.js generates stubs for; not a connection problem.
-    if (/\w+(Command|Action) not found/.test(msg)) return;
+    // Logged anyway, since a new chat feature can arrive this way.
+    if (/\w+(Command|Action) not found/.test(msg)) {
+      const firstLine = msg.split('\n', 1)[0];
+      if (!unknownRenderers.has(firstLine) && unknownRenderers.size < UNHANDLED_LOG_CAP) {
+        unknownRenderers.add(firstLine);
+        console.log('[Ingestion] Unknown chat renderer:', firstLine);
+      }
+      return;
+    }
     console.error('[Ingestion] Live chat error:', err);
     emitter.emit('error', err);
   });
@@ -180,6 +196,59 @@ export async function bootstrapInnertube(videoId: string): Promise<IngestionCont
   console.log('[Ingestion] Live chat listener started');
 
   return { client, liveChat, videoId, title, likeCount, viewerCount, emitter };
+}
+
+// Action and item types that are dropped on purpose; anything else is logged so new chat features can be mapped.
+const IGNORED_ACTION_TYPES = new Set([
+  'MarkChatItemAsDeletedAction',
+  'MarkChatItemsByAuthorAsDeletedAction',
+  'ReplaceChatItemAction',
+  'RemoveChatItemAction',
+  'RemoveChatItemByAuthorAction',
+  'UpdateLiveChatPollAction',
+  'CloseLiveChatActionPanelAction',
+  'RemoveBannerForLiveChatCommand',
+  'AddBannerToLiveChatCommand',
+  'ReplayChatItemAction',
+  'LiveChatReportModerationStateCommand',
+  // The on-video gift animation; the same gift also arrives as a GiftMessageView chat item.
+  'UpdateOrAddInteractivityWidgetAction',
+  // Ticker chips repeat Super Chats and memberships that already arrive as chat items; panels and tooltips are poll UI.
+  'AddLiveChatTickerItemAction',
+  'ShowLiveChatActionPanelAction',
+  'UpdateLiveChatActionPanelAction',
+  'ShowLiveChatTooltipCommand'
+]);
+const IGNORED_ITEM_TYPES = new Set([
+  'LiveChatSponsorshipsGiftRedemptionAnnouncement',
+  'LiveChatViewerEngagementMessage',
+  'LiveChatModeChangeMessage',
+  'LiveChatPlaceholderItem'
+]);
+const UNHANDLED_LOG_CAP = 200;
+// Both reset on every connect, so each stream gets its own budget.
+let unhandledLogged = 0;
+const unknownRenderers = new Set<string>();
+const unpricedGifts = new Set<string>();
+let currentVideoId: string | null = null;
+
+/** Logs the raw shape of chat actions nothing maps yet, capped so a busy chat cannot flood the log. */
+function logUnhandledAction(action: any): void {
+  const actionType = String(action?.type ?? 'unknown');
+  if (IGNORED_ACTION_TYPES.has(actionType)) return;
+  const itemType = action?.item?.type ? String(action.item.type) : undefined;
+  if (actionType === 'AddChatItemAction' && (!itemType || IGNORED_ITEM_TYPES.has(itemType))) return;
+  // Text messages and super chats reach here only when filtered on purpose (gift recipients).
+  if (itemType === 'LiveChatTextMessage') return;
+  if (unhandledLogged >= UNHANDLED_LOG_CAP) return;
+  unhandledLogged++;
+  let raw: string;
+  try {
+    raw = JSON.stringify(action);
+  } catch {
+    raw = '(not serialisable)';
+  }
+  console.log(`[Ingestion] Unhandled chat action ${actionType}${itemType ? `/${itemType}` : ''}: ${raw}`);
 }
 
 function readLikeCount(info: { basic_info?: { like_count?: number } }): number | null {
@@ -361,6 +430,48 @@ function extractSuperChatInfo(item: any): SuperChatInfo | undefined {
   };
 }
 
+function absoluteUrl(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || !raw) return undefined;
+  try {
+    const url = new URL(raw.startsWith('//') ? `https:${raw}` : raw);
+    // Gift art and avatars come from Google's CDNs; anything else means the payload changed shape.
+    const google = /(^|\.)(gstatic\.com|ggpht\.com|googleusercontent\.com|ytimg\.com)$/.test(url.hostname);
+    return url.protocol === 'https:' && google ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Maps a jewel gift (GiftMessageView, added by YouTube in late 2026). youtubei.js has no parser for it yet and
+ * JIT-generates the class, so fields keep their raw names. The item carries no jewel price, channel id or timestamp;
+ * the price comes from the gift catalog (giftCatalog.ts) when a signed-in cookie is configured.
+ */
+export function normalizeGift(item: any, prices: GiftPrices | null = currentGiftPrices()): ChatMessage | null {
+  const author = String(item?.author_name?.content ?? '').trim();
+  const sentText = String(item?.text?.content ?? '').trim();
+  // "sent 100" in the English UI the client requests; the gift name follows the verb.
+  const name = sentText.replace(/^sent\b\s*/i, '').trim();
+  if (!author || !name) return null;
+  const images: any[] = Array.isArray(item?.gift_image?.sources) ? item.gift_image.sources : [];
+  const avatars: any[] = Array.isArray(item?.author_avatar?.image) ? item.author_avatar.image : [];
+  const imageUrl = absoluteUrl(images[0]?.url);
+  const jewels = lookupJewels(prices, imageUrl, name);
+  if (jewels === undefined && currentVideoId) refreshGiftPrices(currentVideoId, true);
+  if (prices && jewels === undefined && !unpricedGifts.has(name) && unpricedGifts.size < UNHANDLED_LOG_CAP) {
+    unpricedGifts.add(name);
+    console.log(`[Ingestion] Gift missing from the catalog: ${name} (${giftAsset(imageUrl) ?? 'no image'})`);
+  }
+  return {
+    id: generateUniqueId(String(item.id ?? Date.now())),
+    author,
+    authorPhoto: absoluteUrl(avatars[0]?.url),
+    text: '',
+    publishedAt: new Date().toISOString(),
+    gift: jewels === undefined ? { name, imageUrl } : { name, imageUrl, jewels }
+  };
+}
+
 function normalizeAction(action: any): ChatMessage | null {
   if (!action || action.type !== 'AddChatItemAction') {
     return null;
@@ -370,6 +481,7 @@ function normalizeAction(action: any): ChatMessage | null {
   if (!item) return null;
 
   const itemType = String(item.type || '').trim();
+  if (itemType === 'GiftMessageView') return normalizeGift(item);
   const resolvedText = resolveMessageText(item);
   const messageText = resolvedText.toLowerCase();
 

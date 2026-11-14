@@ -11,18 +11,21 @@ const TUX_OUTRO: TuxAction[] = ['wave', 'dance', 'laugh', 'walk', 'wave', 'jump'
 
 type Group = { title: string; rows: { name: string; detail?: string }[] };
 
-/** Groups supporters by kind and folds repeat Super Chats from one person into a single row. */
+/** Groups supporters by kind and folds repeat Super Chats and gifts from one person into a single row. */
 function creditGroups(supporters: Supporter[], text: ShowText): Group[] {
   const supers = new Map<string, string[]>();
   const members = new Set<string>();
   const gifts = new Map<string, number>();
+  const jewels = new Map<string, string[]>();
   for (const s of supporters) {
     if (s.kind === 'super') supers.set(s.name, [...(supers.get(s.name) ?? []), ...(s.detail ? [s.detail] : [])]);
     else if (s.kind === 'member') members.add(s.name);
+    else if (s.kind === 'jewel') jewels.set(s.name, [...(jewels.get(s.name) ?? []), ...(s.detail ? [s.detail] : [])]);
     else gifts.set(s.name, (gifts.get(s.name) ?? 0) + (Number(s.detail) || 1));
   }
   const groups: Group[] = [
     { title: text.superChats, rows: [...supers].map(([name, amounts]) => ({ name, detail: amounts.join(', ') })) },
+    { title: text.jewelGifts, rows: [...jewels].map(([name, names]) => ({ name, detail: names.join(', ') })) },
     { title: text.gifts, rows: [...gifts].map(([name, n]) => ({ name, detail: text.gifted(formatNumber(n, text)) })) },
     { title: text.members, rows: [...members].map((name) => ({ name })) }
   ];

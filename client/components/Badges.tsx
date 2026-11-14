@@ -1,6 +1,7 @@
 import { BadgeCheck, Crown, Shield, Star, Tv } from 'lucide-react';
 import type { ChatMessage } from '@shared/chat';
 import { proxyImageUrl } from '../lib/imageProxy';
+import { useStrings } from '../lib/i18n';
 
 const ICONS = {
   moderator: Shield,
@@ -11,10 +12,11 @@ const ICONS = {
 } as const;
 
 export function Badges({ message }: { message: ChatMessage }) {
+  const t = useStrings();
   return (
     <>
       {message.leaderboardRank && (
-        <span className="badge badge--rank" title={`#${message.leaderboardRank} on the chat leaderboard`}>
+        <span className="badge badge--rank" title={t.leaderboard(message.leaderboardRank)}>
           <Crown size={11} strokeWidth={2.5} />
           {message.leaderboardRank}
         </span>

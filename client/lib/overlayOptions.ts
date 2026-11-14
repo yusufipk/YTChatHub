@@ -2,6 +2,7 @@ export const THEMES = ['dark', 'light', 'blueprint', 'glass', 'youtube'] as cons
 export const POSITIONS = ['bl', 'bc', 'br', 'tl', 'tc', 'tr'] as const;
 export const SIZES = ['s', 'm', 'l', 'xl'] as const;
 export const ANIMATIONS = ['fade', 'slide', 'none'] as const;
+export const LANGS = ['tr', 'en'] as const;
 
 export type OverlayOptions = {
   theme: (typeof THEMES)[number];
@@ -12,9 +13,11 @@ export type OverlayOptions = {
   hide: number;
   /** Max card width in pixels. */
   width: number;
+  /** Language of the card's own labels (gift price, membership). */
+  lang: (typeof LANGS)[number];
 };
 
-export const DEFAULT_OPTIONS: OverlayOptions = { theme: 'dark', pos: 'bl', size: 'm', anim: 'fade', hide: 0, width: 640 };
+export const DEFAULT_OPTIONS: OverlayOptions = { theme: 'dark', pos: 'bl', size: 'm', anim: 'fade', hide: 0, width: 640, lang: 'tr' };
 
 function pick<T extends readonly string[]>(list: T, value: string | null, fallback: T[number]): T[number] {
   return value && (list as readonly string[]).includes(value) ? (value as T[number]) : fallback;
@@ -30,7 +33,8 @@ export function parseOverlayOptions(search: string): OverlayOptions {
     size: pick(SIZES, params.get('size'), DEFAULT_OPTIONS.size),
     anim: pick(ANIMATIONS, params.get('anim'), DEFAULT_OPTIONS.anim),
     hide: Number.isFinite(hide) && hide >= 0 ? Math.floor(hide) : DEFAULT_OPTIONS.hide,
-    width: Number.isFinite(width) && width >= 240 ? Math.floor(width) : DEFAULT_OPTIONS.width
+    width: Number.isFinite(width) && width >= 240 ? Math.floor(width) : DEFAULT_OPTIONS.width,
+    lang: pick(LANGS, params.get('lang'), DEFAULT_OPTIONS.lang)
   };
 }
 
@@ -43,6 +47,7 @@ export function buildOverlayUrl(origin: string, options: OverlayOptions): string
   if (options.anim !== DEFAULT_OPTIONS.anim) params.set('anim', options.anim);
   if (options.hide !== DEFAULT_OPTIONS.hide) params.set('hide', String(options.hide));
   if (options.width !== DEFAULT_OPTIONS.width) params.set('w', String(options.width));
+  if (options.lang !== DEFAULT_OPTIONS.lang) params.set('lang', options.lang);
   const query = params.toString();
   return `${origin}/overlay/${query ? `?${query}` : ''}`;
 }

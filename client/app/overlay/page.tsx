@@ -4,19 +4,13 @@ import { useEffect, useState } from 'react';
 import type { ChatMessage } from '@shared/chat';
 import { Badges } from '../../components/Badges';
 import { MessageBody } from '../../components/MessageBody';
-import { formatAmount } from '../../lib/format';
+import { GIFT_ACCENT, formatAmount } from '../../lib/format';
+import { STRINGS, giftLabel, membershipLabel } from '../../lib/i18n';
 import { proxyImageUrl } from '../../lib/imageProxy';
 import { DEFAULT_OPTIONS, parseOverlayOptions, type OverlayOptions } from '../../lib/overlayOptions';
 import { useEvents } from '../../lib/useEvents';
 
 const SWAP_MS = 220;
-
-function membershipLabel(message: ChatMessage): string {
-  if (message.membershipGiftPurchase && message.giftCount) {
-    return `Gifted ${message.giftCount} membership${message.giftCount > 1 ? 's' : ''}`;
-  }
-  return message.membershipLevel || 'New member';
-}
 
 export default function OverlayPage() {
   const { selection } = useEvents();
@@ -55,20 +49,23 @@ export default function OverlayPage() {
   }, [shown, options.hide]);
 
   const message = expired ? null : shown;
-  const kind = message?.superChat ? 'super' : message?.membershipGift || message?.membershipGiftPurchase ? 'member' : 'chat';
+  const t = STRINGS[options.lang];
+  const kind = message?.superChat || message?.gift ? 'super' : message?.membershipGift || message?.membershipGiftPurchase ? 'member' : 'chat';
 
   return (
     <main className={`ov ov--${options.theme} ov--${options.pos} ov--size-${options.size} ov--anim-${options.anim}`} style={{ ['--w' as string]: String(options.width) }}>
       {message && (
-        <div key={message.id} className={`ov__card ov__card--${kind} ${leaving ? 'ov__card--leaving' : ''}`} style={message.superChat ? { ['--accent' as string]: message.superChat.color } : undefined}>
+        <div key={message.id} className={`ov__card ov__card--${kind} ${leaving ? 'ov__card--leaving' : ''}`} style={kind === 'super' ? { ['--accent' as string]: message.superChat?.color ?? GIFT_ACCENT } : undefined}>
           <div className="ov__head">
             {message.authorPhoto && <img src={proxyImageUrl(message.authorPhoto)} alt="" className="ov__avatar" />}
             <span className="ov__author">{message.author}</span>
             <Badges message={message} />
             {message.superChat && <span className="ov__amount">{formatAmount(message.superChat.amount, message.superChat.currency)}</span>}
-            {kind === 'member' && <span className="ov__level">{membershipLabel(message)}</span>}
+            {message.gift && <span className="ov__amount">{giftLabel(message.gift, t)}</span>}
+            {kind === 'member' && <span className="ov__level">{membershipLabel(message, t)}</span>}
           </div>
           <MessageBody message={message} className="ov__text" />
+          {message.gift?.imageUrl && <img src={message.gift.imageUrl} alt={message.gift.name} className="ov__gift" onError={(event) => { event.currentTarget.hidden = true; }} />}
           {message.superChat?.stickerUrl && (
             <img
               src={proxyImageUrl(message.superChat.stickerUrl)}
