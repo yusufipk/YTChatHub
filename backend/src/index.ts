@@ -99,8 +99,20 @@ export async function startBackend() {
 
   // The live id whose chat is being recorded; null while idle or disconnected so mock messages are never saved.
   let historyLiveId: string | null = null;
-  // Restored messages YouTube may send again right after connecting; each is dropped once.
-  const replayKeys = new Set<string>();
+  // Restored messages YouTube may send again right after connecting, counted per key: YouTube can reuse one id for
+  // identical messages (stored as id, id#1, ...), and each replay consumes one occurrence.
+  // Replays arrive in the first poll after connecting; leftovers expire so a later identical message is not dropped.
+  const REPLAY_WINDOW_MS = 60_000;
+  const replayKeys = new Map<string, number>();
+  let replayUntil = 0;
+  const expectReplays = () => {
+    replayKeys.clear();
+    replayUntil = Date.now() + REPLAY_WINDOW_MS;
+    for (const message of store) {
+      const key = replayKey(message);
+      replayKeys.set(key, (replayKeys.get(key) ?? 0) + 1);
+    }
+  };
   const history = createChatHistory(dataDir, () =>
     historyLiveId ? { liveId: historyLiveId, messages: store, session: show.exportSession() } : null
   );
@@ -125,7 +137,7 @@ export async function startBackend() {
       // Same stream as before a restart or disconnect: bring back its chat and credits instead of starting clean.
       store.push(...saved.messages);
       trimMessages(store);
-      for (const message of store) replayKeys.add(replayKey(message));
+      expectReplays();
       emit({ type: 'messages', messages: store });
       show.importSession(saved.session);
       console.log(`[Backend] Restored ${store.length} messages of ${liveId}`);
@@ -142,9 +154,15 @@ export async function startBackend() {
   }
 
   function pushMessage(message: ChatMessage) {
+    if (replayKeys.size > 0 && Date.now() > replayUntil) replayKeys.clear();
     if (replayKeys.size > 0) {
       const key = replayKey(message);
-      if (replayKeys.delete(key)) return;
+      const left = replayKeys.get(key);
+      if (left !== undefined) {
+        if (left > 1) replayKeys.set(key, left - 1);
+        else replayKeys.delete(key);
+        return;
+      }
     }
     store.push(message);
     if (historyLiveId) history.schedule();
@@ -239,7 +257,7 @@ export async function startBackend() {
     stopMock();
     const gen = ++generation;
     // A retry reconnects to the same chat, which replays its recent messages; those are already in the store.
-    if (attempt > 0) for (const message of store) replayKeys.add(replayKey(message));
+    if (attempt > 0) expectReplays();
     if (attempt === 0) setStatus({ state: 'connecting', liveId, title: null, error: null });
 
     let ctx: IngestionContext;
